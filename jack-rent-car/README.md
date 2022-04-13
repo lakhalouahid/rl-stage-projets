@@ -30,7 +30,7 @@ des voitures déplacées entre les deux endroits du jour au lendemain.
 
 1. Définition des paramètres globales
 
-```python
+``` python
 rent_cost = 10 # income from renting single car
 move_cost = 2 # cost to move single car
 discount = 0.9 # discount
@@ -50,7 +50,7 @@ lambda_rent = [3, 4] # λ values for returns in location A and B respectively
      3. la valeur par état
      4. politique par état
 
-```python
+``` python
 A = np.zeros((21,21), dtype=np.int32) # action per state == policy
 V = np.zeros((21,21), dtype=np.float32) # value per state
 R = np.zeros((2 ,21), dtype=np.float32) # value per state per location
@@ -59,7 +59,7 @@ T = np.zeros((2 ,21,21), dtype=np.float32) # transition probability matrix per l
 
 3. Calcul des matrices R et V
 
-```python
+``` python
 def trans_prob(self, s, garage):
   """
   Update the transition probalility matrix starting from stat 's' for the location 'garage'
@@ -92,7 +92,7 @@ def init_trans_prob(self):
 ```
 3. Évaluer une politique
 
-```
+``` python
 def policy_evalue(self):
   """
   Evaluate the policy A
