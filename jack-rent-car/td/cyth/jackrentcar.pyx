@@ -27,7 +27,7 @@ cdef str root_dir = os.path.dirname(sys.argv[0])
 cdef class CarRent:
   cdef float alpha
   def __init__(self):
-    self.alpha = 0.2
+    self.alpha = 0.1
 
   cpdef float policy_evalue(self, repeat:int=10000) except -128:
     """
@@ -102,7 +102,6 @@ cpdef int jackrentcar() except -1:
       break
     print("Improve Policies ...")
     car_rent.policy_improve()
-    policies.append(A.copy())
     i+=1
     if i & 7 == 0:
       print(_A)
