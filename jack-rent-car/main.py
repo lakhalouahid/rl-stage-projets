@@ -1,7 +1,10 @@
 import logging
+import os
+import sys
 import numpy as np
 
-from datetime import datetime
+from time import time
+from matplotlib import cm, pyplot as plt
 from scipy.special import factorial
 
 rent_cost = 10
@@ -20,17 +23,17 @@ A = np.zeros((21,21), dtype=np.int32)
 V = np.zeros((21,21), dtype=np.float32)
 R = np.zeros((2 ,21), dtype=np.float32)
 T = np.zeros((2 ,21,21), dtype=np.float32)
-
+root_dir = os.path.dirname(sys.argv[0])
 logger_name = "jack-rent-car"
-logger_filename = f"logs/{logger_name}-{datetime.now().isoformat()}.log"
-formatter = logging.Formatter(fmt="%(message)s")
+logger_filename = f"{root_dir}/logs/{logger_name}-{int(time())}.log"
+formatter = logging.Formatter("%(message)s")
 
 file_handler = logging.FileHandler(logger_filename)
 file_handler.setFormatter(formatter)
-file_handler.setLevel(logging.DEBUG)
 
-logger = logging.getLogger(name=logger_name)
+logger = logging.getLogger(logger_name)
 logger.addHandler(file_handler)
+logger.setLevel(logging.DEBUG)
 
 
 def poisson_prob(lam, n):
@@ -107,6 +110,44 @@ class CarRent:
     return stable_flag
 
 
+
+def visualize_results():
+  fig = plt.figure()
+  ax1 = fig.add_subplot(2, 3, 1)
+  fig.pad_inches = -1
+  ax1.imshow(policies[0])
+  ax1.set_title("Policy plot after 1 iteration")
+  ax1.set_xlabel("Number of cars in station A")
+  ax1.set_ylabel("Number of cars in station B")
+  ax2 = fig.add_subplot(2, 3, 2)
+  ax2.imshow(policies[1])
+  ax2.set_title("Policy plot after 2 iterations")
+  ax2.axis('off')
+  ax3 = fig.add_subplot(2, 3, 3)
+  ax3.set_title("Policy plot after 3 iterations")
+  ax3.imshow(policies[2])
+  ax3.axis('off')
+  ax4 = fig.add_subplot(2, 3, 4)
+  ax4.set_title("Policy plot after 4 iterations")
+  ax4.imshow(policies[3])
+  ax4.axis('off')
+  ax5 = fig.add_subplot(2, 3, 5)
+  ax5.set_title("Policy plot after 5 iterations")
+  ax5.imshow(policies[4])
+  ax5.axis('off')
+  ax6 = fig.add_subplot(2, 3, 6, projection='3d')
+  X = np.arange(21)
+  Y = np.arange(21)
+  X, Y = np.meshgrid(X, Y)
+  surf = ax6.contourf(X, Y, V, 250, cmap=cm.coolwarm, alpha=0.6, antialiased=False)
+  fig.colorbar(surf, ax=ax6)
+  ax6.set_title("Optimal value Plot")
+  ax6.set_xlabel("Number of cars in station A")
+  ax6.set_ylabel("Number of cars in station B")
+  ax6.set_zlabel("State value")
+  fig.tight_layout()
+  plt.show()
+
 def main():
   np.set_printoptions(linewidth=100000)
   car_rent = CarRent()
@@ -123,7 +164,7 @@ def main():
     stable = car_rent.policy_improve()
     logger.info(A)
     policies.append(A.copy())
-
+  visualize_results()
 
 if __name__ == "__main__":
   main()
