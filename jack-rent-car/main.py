@@ -42,6 +42,13 @@ def poisson_prob(lam, n):
 
 class CarRent:
   def trans_prob(self, s, garage):
+    """
+    Update the transition probalility matrix starting from stat 's' for the location 'garage'
+
+    this function loops first with all possible renting
+    requests then loops over all possible returns, then
+    it updated the matrices
+    """
     for r in range(max_garage_cars + 1):
       p_rent = poisson_prob(lambda_rent[garage], r)
       if p_rent < accuracy:
@@ -56,11 +63,17 @@ class CarRent:
         T[garage, s, s_next] += p_rent * p_ret
 
   def init_trans_prob(self):
+    """
+    Calculate the transition probability maxtrix
+    """
     for i in range(max_garage_cars+1):
       self.trans_prob(i, 0)
       self.trans_prob(i, 1)
 
   def policy_evalue(self):
+    """
+    Evaluate the policy A
+    """
     delta = 0
     for i in range(max_garage_cars+1):
       for j in range(max_garage_cars+1):
@@ -71,6 +84,9 @@ class CarRent:
     return delta
 
   def value_calculate(self, i, j, a):
+    """
+    Compute the value of a action given a state
+    """
     if a > i:
       a = i
     elif a < 0 and -a > j:
@@ -86,6 +102,9 @@ class CarRent:
     return temp_v
 
   def action_greedy(self, i, j):
+    """
+    Compute the greedy action given a state
+    """
     best_action = 0
     best_value = 0
     for a in range(-max_moved_car, max_moved_car+1):
@@ -100,6 +119,9 @@ class CarRent:
     return best_action
 
   def policy_improve(self):
+    """
+    Sweep over the state space and compute the new best policy
+    """
     stable_flag = True
     for i in range(max_garage_cars + 1):
       for j in range(max_garage_cars + 1):
@@ -115,10 +137,11 @@ def visualize_results():
   fig = plt.figure()
   ax1 = fig.add_subplot(2, 3, 1)
   fig.pad_inches = -1
-  ax1.imshow(policies[0])
+  img1 = ax1.imshow(policies[0])
   ax1.set_title("Policy plot after 1 iteration")
   ax1.set_xlabel("Number of cars in station A")
   ax1.set_ylabel("Number of cars in station B")
+  plt.colorbar(img1)
   ax2 = fig.add_subplot(2, 3, 2)
   ax2.imshow(policies[1])
   ax2.set_title("Policy plot after 2 iterations")
