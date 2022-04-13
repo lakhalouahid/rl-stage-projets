@@ -80,7 +80,7 @@ class CarRent:
         v = V[i, j]
         a = A[i, j]
         V[i, j] = self.value_calculate(i, j, a)
-        delta = max(delta, np.abs(v-V[i, j]))
+        delta = max(delta, np.abs(v - V[i, j]))
     return delta
 
   def value_calculate(self, i, j, a):
