@@ -1,10 +1,6 @@
-import logging
 import os
 import sys
 import numpy as np
-
-from time import time
-from scipy.special import factorial
 
 rent_cost = 10
 move_cost = 2
@@ -23,11 +19,6 @@ lambda_rent = [3, 4]
 A = np.zeros((max_garage_cars + 1, max_garage_cars + 1), dtype=np.int32)
 Q = np.zeros((11, max_garage_cars + 1, max_garage_cars + 1), dtype=np.float32)
 root_dir = os.path.dirname(sys.argv[0])
-
-
-def poisson_prob(lam, n):
-   return np.exp(-lam) * (lam**n) / factorial(n)
-
 
 
 class CarRent:
@@ -63,7 +54,7 @@ class CarRent:
           alpha * ( \
             + rent_cost * rent_i \
             - move_cost * abs(a) \
-            + discount * (np.argmax(Q[:, new_si, new_sj]) - 5)  \
+            + discount * np.max(Q[:, new_si, new_sj])  \
             - Q[a + 5, si, sj] \
           )
     return float(np.max(np.abs(Q - Qold)))
