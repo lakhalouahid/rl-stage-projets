@@ -45,10 +45,10 @@ lambda_rent = [3, 4] # λ values for returns in location A and B respectively
 ```
 
 2. Définition des matrices
-  1. la valeur par état
-  2. la politique par état
-  3. la valeur par état
-  4. politique par état
+     1. la valeur par état
+     2. la politique par état
+     3. la valeur par état
+     4. politique par état
 
 ```python
 A = np.zeros((21,21), dtype=np.int32) # action per state == policy
