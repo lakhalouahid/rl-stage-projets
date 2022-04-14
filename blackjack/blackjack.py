@@ -264,3 +264,56 @@ def policy_improve(
       break
   print("Evaluation finished!")
   return A
+
+
+@jit(nopython=True, cache=True)
+def policy_test(
+    A: np.ndarray,
+    usable_ace: bool=False,
+    accuracy: float=1e-2,
+    pure_rand: bool=True) -> tuple[float, float]:
+  player_cards = np.zeros((21,), dtype=np.int8)
+  dealer_cards = np.zeros((21,), dtype=np.int8)
+  V = np.zeros((10, 10), dtype=np.float32)
+  nV = np.ones((10, 10), dtype=np.int32)
+  shoe_buffer = np.repeat(cards_space, 4 * 8)
+  count = shoe_buffer.shape[0] - 1
+  shoe = Shoe(count, shoe_buffer, pure_rand)
+  sim_i = 0.0
+  win_i = 0.0
+  drw_i = 0.0
+  while True:
+    V_old = V.copy()
+    for _ in range(1000):
+      sim_i += 1
+      ii = 0
+      jj = 0
+      ii = append_card(player_cards, ii, shoe.sample_card())
+      jj = append_card(dealer_cards, jj, shoe.sample_card())
+      ii = append_card(player_cards, ii, shoe.sample_card())
+      jj = append_card(dealer_cards, jj, shoe.sample_card())
+
+      while get_sum(player_cards, usable_ace) < 12:
+        ii = append_card(player_cards, ii, shoe.sample_card())
+
+      while player_policy(dealer_cards, player_cards, A, usable_ace) == push_action:
+        ii = append_card(player_cards, ii, shoe.sample_card())
+
+      while dealer_policy(dealer_cards, player_cards, usable_ace) == push_action:
+        jj = append_card(dealer_cards, jj, shoe.sample_card())
+
+      result = get_result(dealer_cards, player_cards, usable_ace)
+      if result == 1:
+        win_i += 1
+      elif result == 0:
+        drw_i += 1
+
+      value_update(dealer_cards, player_cards, V, nV, result, usable_ace)
+
+      clear_cards(player_cards)
+      clear_cards(dealer_cards)
+
+    if np.max(np.abs(V - V_old)) < accuracy:
+      break
+  print("Evaluation finished!")
+  return (win_i / sim_i, drw_i / sim_i)
