@@ -408,19 +408,19 @@ Pour évaluer une politique, on fixe les paramétres suivants:
 
 ###### Cas d'ace désactivé et tirage avec remise
 
-[image](./images/V00.png)
+![image](./images/V00.png)
 
 
 ###### Cas d'ace désactivé et tirage sans remise
 
-[image](./images/V01.png)
+![image](./images/V01.png)
 
 
 ###### Cas d'ace activé et tirage avec remise
 
-[image](./images/V10.png)
+![image](./images/V10.png)
 
 
 ###### Cas d'ace activé et tirage sans remise
 
-[image](./images/V11.png)
+![image](./images/V11.png)
