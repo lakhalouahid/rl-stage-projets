@@ -474,3 +474,25 @@ Pour touver la politique optimale, on fixe les paramétres suivants:
 #### Politiques optimales Trouvées
 
 ![images](./images/computed_policy.png)
+
+(0.4297332009531374, 0.08304861000794281)
+(0.42646338565973696, 0.08797047093763258)
+(0.42484085862324206, 0.0941619541080681)
+(0.3614707938092861, 0.07575366949575636)
+
+#### Résultats
+
+##### Politiques optimales du livre
+
+|   Taux               |   Ace Activé   | Ace Désactivé |
+|----------------------|----------------|---------------|
+|   Taux de réussite   |    36.15 %     |    42.65 %    |
+|   Taux d'égalité     |    07.58 %     |    08.79 %    |
+
+
+##### Politiques optimales Trouvées
+
+|   Taux               |   Ace Activé   | Ace Désactivé |
+|----------------------|----------------|---------------|
+|   Taux de réussite   |    42.48 %     |    42.97 %    |
+|   Taux d'égalité     |    09.42 %     |    08.30 %    |

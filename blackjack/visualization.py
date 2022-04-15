@@ -80,6 +80,7 @@ def label_axe_compare(fig, axes, A, titles):
   for i in range(player_sums.shape[0]):
       for j in range(dealer_displayed_cards.shape[0]):
         ax1.text(j, i, A[0, i, j], ha="center", va="center", color="w", fontsize='large')
+
   ax2 = axes[1]
   im2 = ax2.imshow(A[1])
   ax2.set_yticks(np.arange(player_sums.shape[0]), labels=player_sums)
@@ -218,23 +219,18 @@ def compare(args):
   A_book = np.zeros((2, 10, 10), dtype=np.int8)
   A_algo = np.zeros((2, 10, 10), dtype=np.int8)
   ## book
-  # usable ace
   A_book[1, :7,  :] = 1
   A_book[1, 6, 2:8] = 1
-  # no usable ace
   A_book[0, :5, 6:] = 1
   A_book[0, :5,  0] = 1
   A_book[0, 0, 1:3] = 1
-  ## algorithme
-  # usable ace
   A_algo[1, :5, 6:] = 1
   A_algo[1, :5,  0] = 1
   A_algo[1, 0, 1:3] = 1
-  # no usable ace
   A_algo[0, :5, 6:] = 1
   A_algo[0, :2,  0] = 1
-  A_algo[0, 0, 1] = 1
-  A_algo[0, 4, 9] = 0
+  A_algo[0,  0,  1] = 1
+  A_algo[0,  4,  9] = 0
 
   aa = policy_test(A_algo[0], usable_ace=False, accuracy=acc, pure_rand=True)
   bb = policy_test(A_book[0], usable_ace=False, accuracy=acc, pure_rand=True)
