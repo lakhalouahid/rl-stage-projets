@@ -392,7 +392,7 @@ def policy_test(
 
 ## Résultats
 
-### Évaluation de la politique trivial
+### Évaluation de la politique triviale
 
 #### Description:
 
@@ -400,27 +400,63 @@ Pour évaluer une politique, on fixe les paramétres suivants:
 
 1. `accuracy`
 2. `usable_ace` Vrai si l'ace est activité
-3. `pure_rand` Vrai si le tirage est sans remise
+3. `pure_rand` Vrai si le tirage est avec remise
 
 **La politique** : "Tant que la somme <= 19, prend nouvelle carte"
 
 ##### Résultats d'évaluation
 
-###### Cas d'ace désactivé et tirage avec remise
-
-![image](./images/V00.png)
-
-
 ###### Cas d'ace désactivé et tirage sans remise
 
-![image](./images/V01.png)
+![Cas d'ace désactivé et tirage sans remise](./images/V00.png)
 
 
-###### Cas d'ace activé et tirage avec remise
+###### Cas d'ace désactivé et tirage avec remise
 
-![image](./images/V10.png)
+![Cas d'ace désactivé et tirage avec remise](./images/V01.png)
 
 
 ###### Cas d'ace activé et tirage sans remise
 
-![image](./images/V11.png)
+![Cas d'ace activé et tirage sans remise](./images/V10.png)
+
+
+###### Cas d'ace activé et tirage avec remise
+
+![Cas d'ace activé et tirage avec remise](./images/V11.png)
+
+
+
+
+### Politique Optimale
+
+#### Description:
+
+Pour touver la politique optimale, on fixe les paramétres suivants:
+
+1. `accuracy`
+2. `usable_ace` Vrai si l'ace est activité
+3. `pure_rand` Vrai si le tirage est avec remise
+
+**La politique initiale** : "Tant que la somme <= 19, prend nouvelle carte"
+
+##### Résultats d'estimation/amélioration
+
+###### Cas d'ace désactivé et tirage sans remise
+
+![Cas d'ace désactivé et tirage sans remise](./images/A00.png)
+
+
+###### Cas d'ace désactivé et tirage avec remise
+
+![Cas d'ace désactivé et tirage avec remise](./images/A01.png)
+
+
+###### Cas d'ace activé et tirage sans remise
+
+![Cas d'ace activé et tirage sans remise](./images/A10.png)
+
+
+###### Cas d'ace activé et tirage avec remise
+
+![Cas d'ace activé et tirage avec remise](./images/A11.png)
