@@ -11,8 +11,9 @@ from matplotlib import cm, pyplot as plt
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-a", "--accuracy", type=float, default=1e-4, help="Accuracy of the evaluation")
-parser.add_argument("-e", "--eval", action="store_true", help="Accuracy of the evaluation")
+parser.add_argument("-a", "--accuracy", type=float, default=1e-4, help="")
+parser.add_argument("-e", "--eval", action="store_true", help="")
+parser.add_argument("-t", "--test", action="store_true", help="")
 
 
 
@@ -31,6 +32,18 @@ policy_titles = [
   "Policy function with usable ace and semi pure random card sampling",
   "Policy function with usable ace and pure random card sampling"
 ]
+
+compare_titles = [
+  [
+    "Reference policy without usable ace",
+    "Reference policy with usable ace"
+  ],
+  [
+    "Computed policy without usable ace",
+    "Computed policy with usable ace"
+  ]
+]
+
 
 def label_axe_eval(fig, ax, V, title):
   img = ax.imshow(V)
@@ -55,6 +68,28 @@ def label_axe_improve(fig, ax, A, title):
   for i in range(player_sums.shape[0]):
       for j in range(dealer_displayed_cards.shape[0]):
         ax.text(j, i, A[i, j], ha="center", va="center", color="w", fontsize='x-large')
+
+def label_axe_compare(fig, axes, A, titles):
+  ax1 = axes[0]
+  im1 = ax1.imshow(A[0])
+  ax1.set_yticks(np.arange(player_sums.shape[0]), labels=player_sums)
+  ax1.set_xticks(np.arange(dealer_displayed_cards.shape[0]), labels=dealer_displayed_cards)
+  ax1.set_title(titles[0], fontsize='x-large')
+  ax1.set_xlabel("Dealer showed card 1 .. 10", fontsize='x-large')
+  ax1.set_ylabel("Player total sum card 12 .. 21", fontsize='x-large')
+  for i in range(player_sums.shape[0]):
+      for j in range(dealer_displayed_cards.shape[0]):
+        ax1.text(j, i, A[0, i, j], ha="center", va="center", color="w", fontsize='large')
+  ax2 = axes[1]
+  im2 = ax2.imshow(A[1])
+  ax2.set_yticks(np.arange(player_sums.shape[0]), labels=player_sums)
+  ax2.set_xticks(np.arange(dealer_displayed_cards.shape[0]), labels=dealer_displayed_cards)
+  ax2.set_title(titles[1], fontsize='x-large')
+  ax2.set_xlabel("Dealer showed card 1 .. 10", fontsize='x-large')
+  ax2.set_ylabel("Player total sum card 12 .. 21", fontsize='x-large')
+  for i in range(player_sums.shape[0]):
+      for j in range(dealer_displayed_cards.shape[0]):
+        ax2.text(j, i, A[1, i, j], ha="center", va="center", color="w", fontsize='large')
 
 def visualize_eval(A: np.ndarray, data: list[np.ndarray]) -> None:
   V00, V01, V10, V11  = data
@@ -132,7 +167,6 @@ def improve(args):
   visualize_improve([A00, A01, A10, A11])
 
 
-
 def visualize_improve(data: list[np.ndarray]) -> None:
   A00, A01, A10, A11 = data
 
@@ -163,6 +197,20 @@ def visualize_improve(data: list[np.ndarray]) -> None:
   fig4.savefig("./images/A11.png")
 
 
+def visualize_compare(A_book: np.ndarray, A_algo: np.ndarray) -> None:
+  fig1, axes1 = plt.subplots(1, 2)
+  label_axe_compare(fig1, axes1, A_book, compare_titles[0])
+  fig1.tight_layout()
+
+  fig2, axes2 = plt.subplots(1, 2)
+  label_axe_compare(fig2,  axes2, A_algo, compare_titles[1])
+  fig2.tight_layout()
+
+  plt.show()
+  fig1.savefig("./images/reference_policy.png")
+  fig2.savefig("./images/computed_policy.png")
+
+
 
 
 def compare(args):
@@ -179,25 +227,37 @@ def compare(args):
   A_book[0, 0, 1:3] = 1
   ## algorithme
   # usable ace
-  A_algo[1, :7,  :] = 1
-  A_algo[1, 6, 2:8] = 1
+  A_algo[1, :5, 6:] = 1
+  A_algo[1, :5,  0] = 1
+  A_algo[1, 0, 1:3] = 1
   # no usable ace
   A_algo[0, :5, 6:] = 1
-  A_algo[0, :5,  0] = 1
-  A_algo[0, 0, 1:3] = 1
+  A_algo[0, :2,  0] = 1
+  A_algo[0, 0, 1] = 1
+  A_algo[0, 4, 9] = 0
 
-  policy_test(A_book[1], usable_ace=True, accuracy=acc, pure_rand=True)
-  policy_test(A_book[0], usable_ace=False, accuracy=acc, pure_rand=True)
-  policy_test(A_algo[1], usable_ace=True, accuracy=acc, pure_rand=True)
-  policy_test(A_algo[0], usable_ace=False, accuracy=acc, pure_rand=True)
+  aa = policy_test(A_algo[0], usable_ace=False, accuracy=acc, pure_rand=True)
+  bb = policy_test(A_book[0], usable_ace=False, accuracy=acc, pure_rand=True)
+  cc = policy_test(A_algo[1], usable_ace=True, accuracy=acc, pure_rand=True)
+  dd = policy_test(A_book[1], usable_ace=True, accuracy=acc, pure_rand=True)
+  print(aa)
+  print(bb)
+  print(cc)
+  print(dd)
+  visualize_compare(A_book, A_algo)
 
 
 def main():
   args = parser.parse_args()
-  if args.eval:
+  if args.test:
+    compare(args)
+  elif args.eval:
     evaluation(args)
-  else:
+  elif not args.eval:
     improve(args)
+
+
+
 
 if __name__ == '__main__':
   main()

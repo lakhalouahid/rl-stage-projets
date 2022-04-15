@@ -460,3 +460,17 @@ Pour touver la politique optimale, on fixe les paramétres suivants:
 ###### Cas d'ace activé et tirage sans remise
 
 ![Cas d'ace activé et tirage sans remise](./images/A11.png)
+
+
+
+### Comparer les politiques
+
+#### Politiques optimales du livre
+
+![images](./images/reference_policy.png)
+
+
+
+#### Politiques optimales Trouvées
+
+![images](./images/computed_policy.png)
