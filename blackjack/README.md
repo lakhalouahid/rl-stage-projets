@@ -57,7 +57,7 @@ from numba.experimental import jitclass # jit a class
 class Shoe():
   count: int # current card index
   shoe: np.ndarray # shoe of cards
-  pure_rand: bool # if pure_rand == True => sample from cards distribution
+  pure_rand: bool # if pure_rand == True => sample without replacement
 
   def __init__(self, count: int, shoe: np.ndarray, pure_rand: bool):
     self.count = count
@@ -389,3 +389,38 @@ def policy_test(
   print("Evaluation finished!")
   return (win_i / sim_i, drw_i / sim_i)
 ```
+
+## Résultats
+
+### Évaluation de la politique trivial
+
+#### Description:
+
+Pour évaluer une politique, on fixe les paramétres suivants:
+
+1. `accuracy`
+2. `usable_ace` Vrai si l'ace est activité
+3. `pure_rand` Vrai si le tirage est sans remise
+
+**La politique** : "Tant que la somme <= 19, prend nouvelle carte"
+
+##### Résultats d'évaluation
+
+###### Cas d'ace désactivé et tirage avec remise
+
+[image](./images/V00.png)
+
+
+###### Cas d'ace désactivé et tirage sans remise
+
+[image](./images/V01.png)
+
+
+###### Cas d'ace activé et tirage avec remise
+
+[image](./images/V10.png)
+
+
+###### Cas d'ace activé et tirage sans remise
+
+[image](./images/V11.png)
