@@ -37,12 +37,12 @@ class Shoe():
 def get_sum(cards: np.ndarray, usable_ace: bool) -> int:
   has_ace = False
   cards_sum = 0
-  for card in cards:
-    cards_sum += card
-    if card == 1:
-      has_ace == True
-  if usable_ace and has_ace and cards_sum + 10 <= 21:
-      return cards_sum + 10
+  for i in np.arange(cards.shape[0]):
+    cards_sum += cards[i]
+    if cards[i] == 1:
+      has_ace = True
+  if usable_ace and has_ace and (cards_sum + 10) <= 21:
+    return cards_sum + 10
   return cards_sum
 
 @jit('i1(i1[:],i1[:],b1)', nopython=True, cache=True, fastmath=True)
@@ -125,15 +125,14 @@ def value_update(
       nV[ii,  jj] += 1
 
 
-@jit('void(i1[:],i1[:],f4[:,:,:],i4[:,:,:],i1,b1,f4)', nopython=True, cache=True, fastmath=True)
+@jit('void(i1[:],i1[:],f4[:,:,:],i4[:,:,:],i1,b1)', nopython=True, cache=True, fastmath=True)
 def value_update_estimation(
     dealer_cards: np.ndarray,
     player_cards: np.ndarray,
     Q: np.ndarray,
     nQ: np.ndarray,
     result: int,
-    usable_ace: bool,
-    discount: float) -> None:
+    usable_ace: bool) -> None:
   player_sum = get_sum(player_cards, usable_ace)
   player_sum = get_sum(player_cards, usable_ace)
   for i in range(len(player_cards)-1):
@@ -144,7 +143,7 @@ def value_update_estimation(
       aa = ((i+2) != player_cards[player_cards > 0].shape[0]) * 1
       ii = player_sum - 12
       jj = dealer_cards[1] - 1
-      Q[ii, jj, aa] += (1.0 / nQ[ii, jj, aa]) * (result - discount * Q[ii, jj, aa])
+      Q[ii, jj, aa] += (1.0 / nQ[ii, jj, aa]) * (result - Q[ii, jj, aa])
       nQ[ii,  jj, aa] += 1
 
 
@@ -169,21 +168,20 @@ def clear_cards(cards: np.ndarray) -> None:
 
 @jit(nopython=True, cache=True)
 def policy_eval(
+    A: np.ndarray,
     usable_ace: bool=False,
     accuracy: float=1e-2,
     pure_rand: bool=True) -> tuple[np.ndarray, np.ndarray]:
   player_cards = np.zeros((21,), dtype=np.int8)
   dealer_cards = np.zeros((21,), dtype=np.int8)
-  A = np.zeros((10, 10), dtype=np.int8)
   V = np.zeros((10, 10), dtype=np.float32)
   nV = np.ones((10, 10), dtype=np.int32)
   shoe_buffer = np.repeat(cards_space, 4 * 8)
   count = shoe_buffer.shape[0] - 1
   shoe = Shoe(count, shoe_buffer, pure_rand)
-  A[:8, :] = 1
   while True:
     V_old = V.copy()
-    for _ in range(1000):
+    for _ in range(5000):
       ii = 0
       jj = 0
       ii = append_card(player_cards, ii, shoe.sample_card())
@@ -229,11 +227,10 @@ def policy_improve(
   shoe_buffer = np.repeat(cards_space, 4 * 8)
   count = shoe_buffer.shape[0] - 1
   shoe = Shoe(count, shoe_buffer, pure_rand)
-  discount = 0.9
   A[:8, :] = 1
   while True:
     Q_old = Q.copy()
-    for _ in range(1000):
+    for _ in range(5000):
       ii = 0
       jj = 0
       ii = append_card(player_cards, ii, shoe.sample_card())
@@ -252,7 +249,7 @@ def policy_improve(
 
       result = get_result(dealer_cards, player_cards, usable_ace)
 
-      value_update_estimation(dealer_cards, player_cards, Q, nQ, result, usable_ace, discount)
+      value_update_estimation(dealer_cards, player_cards, Q, nQ, result, usable_ace)
 
 
       clear_cards(player_cards)
@@ -284,7 +281,7 @@ def policy_test(
   drw_i = 0.0
   while True:
     V_old = V.copy()
-    for _ in range(1000):
+    for _ in range(5000):
       sim_i += 1
       ii = 0
       jj = 0
