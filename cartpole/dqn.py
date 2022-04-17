@@ -19,9 +19,15 @@ class NN(nn.Module):
     self.sequential = nn.Sequential(
       nn.Linear(4, 32),
       nn.LeakyReLU(inplace=True),
-      nn.Linear(32, 32),
+      nn.Linear(32, 16),
       nn.LeakyReLU(inplace=True),
-      nn.Linear(32, 32),
+      nn.Linear(16, 8),
+      nn.LeakyReLU(inplace=True),
+      nn.Linear(8, 4),
+      nn.LeakyReLU(inplace=True),
+      nn.Linear(4, 8),
+      nn.LeakyReLU(inplace=True),
+      nn.Linear(8, 32),
       nn.LeakyReLU(inplace=True),
       nn.Linear(32, 2)
       )
@@ -99,16 +105,15 @@ def choose_action(actions_values, eps: float=0.05):
 def train(lr, lr_decay, min_lr, itermax):
   try:
     eps = 0.05
-    env = gym.make('CartPole-v1')
+    env = gym.make('CartPole-v1', )
     buffer = Buffer(1<<16)
     dqnn = DQNN(NN, lr=lr, lr_decay=lr_decay, min_lr=min_lr, itermax=itermax)
     for i_episode in range(int(1e5)):
       state = env.reset()
       for t in range(500):
-        # env.render()
         action = 0
-        if i_episode & 255 == 0:
-          env.render()
+        if i_episode & 1023 == 0:
+          env.render(mode='human')
           action = dqnn.eval_dqn(state)
         else:
           actions_values = dqnn(state)
@@ -149,6 +154,6 @@ def test():
     print("exit")
 
 def main():
-  test()
+  train(math.pow(10, -3.5), 0.9999, 1e-5,  75)
 if __name__  == "__main__":
   main()

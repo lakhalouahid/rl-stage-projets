@@ -3,7 +3,10 @@ import numpy as np
 
 class carray():
   def __init__(self, maxlen, size, dtype):
-    shape = (maxlen, size)
+    if isinstance(size, tuple):
+      shape = (maxlen, *size)
+    else:
+      shape = (maxlen, size)
     self.buf = np.zeros(shape=shape, dtype=dtype)
     self.maxlen = maxlen
     self.head = 0
@@ -25,6 +28,7 @@ class carray():
     perm = perm + self.head + 1
     perm = perm & (self.maxlen - 1)
     return self.buf[perm]
+
 
 
 class Buffer():
@@ -55,3 +59,5 @@ class Buffer():
     rewards = self.rewards.sample_from_perm(perm)
     dones = self.dones.sample_from_perm(perm)
     return (states, actions, newstates, rewards, dones)
+
+
