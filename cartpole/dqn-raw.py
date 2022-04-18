@@ -3,6 +3,8 @@ import torch
 import math
 import multiprocessing
 
+from matplotlib import image, pyplot as plt
+
 import numpy as np
 import torch.nn.functional as F
 import torchvision.transforms as T
@@ -13,19 +15,29 @@ from PIL import Image
 from torch import nn
 from torch.optim import Adam, lr_scheduler
 
+
+
+
+
+
+
+
+torch.backends.cudnn.benchmark = True
+torch.autograd.anomaly_mode.set_detect_anomaly(False)
+torch.autograd.profiler.profile = False
+
+
 class Transform:
-  def __init__(self, device):
+  def __init__(self, device, image_shape):
     self.device = device
-    self.resize = T.Compose([
-                    T.ToPILImage(),
-                    T.Resize((40, 40), interpolation=Image.CUBIC),
-                    T.ToTensor()
-                  ])
+    self.to_PILImage = T.ToPILImage()
+    self.resize = T.Resize(image_shape, interpolation=Image.CUBIC)
+    self.from_PILImage = T.ToTensor()
 
   def prepare(self, x):
-    x = x.transpose((2, 0, 1))
-    x =  self.resize(x) / 255
-    return x.to(self.device)
+    x = self.to_PILImage(x)
+    x = self.resize(x)
+    return self.from_PILImage(x) / 255
 
 
 
@@ -61,10 +73,10 @@ class carray():
 
 
 class BufferRaw():
-  def __init__(self, maxlen: int, device):
-    self.states = carray(maxlen, (3, 40, 40), torch.float32, device)
+  def __init__(self, maxlen: int, device, state_shape):
+    self.states = carray(maxlen, state_shape, torch.float32, device)
     self.actions = carray(maxlen, 1, torch.int8, device)
-    self.newstates = carray(maxlen, (3, 40, 40), torch.float32, device)
+    self.newstates = carray(maxlen, state_shape, torch.float32, device)
     self.rewards = carray(maxlen, 1, torch.int8, device)
     self.dones = carray(maxlen, 1, torch.bool, device)
     self.maxlen = maxlen
@@ -91,35 +103,45 @@ class BufferRaw():
 
 
 class NN(nn.Module):
-  def __init__(self, h, w, outputs):
+  def __init__(self):
     super(NN, self).__init__()
-    self.conv1 = nn.Conv2d(3, 16, kernel_size=5, stride=2)
-    self.bn1 = nn.BatchNorm2d(16)
-    self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
-    self.bn2 = nn.BatchNorm2d(32)
-    self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
-    self.bn3 = nn.BatchNorm2d(32)
+    self.cv =  nn.Sequential(
+      nn.Conv2d(3, 16, kernel_size=8, stride=4),
+      nn.LeakyReLU(inplace=True),
+      nn.Conv2d(16, 32, kernel_size=4, stride=2),
+      nn.LeakyReLU(inplace=True),
+      nn.Conv2d(32, 64, kernel_size=3, stride=2),
+      nn.LeakyReLU(inplace=True),
+    )
 
-    convw = NN.conv2d_size_out(NN.conv2d_size_out(NN.conv2d_size_out(w)))
-    convh = NN.conv2d_size_out(NN.conv2d_size_out(NN.conv2d_size_out(h)))
-    linear_input_size = convw * convh * 32
-    self.head = nn.Linear(linear_input_size, outputs)
+    self.fc = nn.Sequential(
+      nn.Linear(1024, 128),
+      nn.LeakyReLU(inplace=True),
+      nn.Linear(128, 2),
+    )
+    for cv in self.cv.modules():
+      if isinstance(cv, nn.Conv2d):
+        nn.init.kaiming_uniform_(cv.weight)
+        if cv.bias is not None:
+          fan_in, _ = nn.init._calculate_fan_in_and_fan_out(cv.weight)
+          if fan_in != 0:
+            bound = 1 / math.sqrt(fan_in)
+            nn.init.uniform_(cv.bias, -bound, bound)
+    for fc in self.fc.modules():
+      if isinstance(fc, nn.Linear):
+        nn.init.xavier_normal_(fc.weight)
+        nn.init.zeros_(fc.bias)
 
   def forward(self, x):
-    x = F.relu(self.bn1(self.conv1(x)))
-    x = F.relu(self.bn2(self.conv2(x)))
-    x = F.relu(self.bn3(self.conv3(x)))
-    return self.head(x.view(x.size(0), -1))
+    x = self.cv(x)
+    return self.fc(torch.flatten(x, start_dim=1))
 
-  @staticmethod
-  def conv2d_size_out(size, kernel_size = 5, stride = 2):
-    return (size - (kernel_size - 1) - 1) // stride  + 1
 
 class DQNN(nn.Module):
   def __init__(self, nntype, discount=1, lr=3e-4, lr_decay=0.999, min_lr=3e-6, itermax=60):
     super(DQNN, self).__init__()
-    self.train_net = nntype(40, 40, 2)
-    self.target_net = nntype(40, 40, 2)
+    self.train_net = nntype()
+    self.target_net = nntype()
     self.target_itermax = itermax
     self.save_freq = 0
     self.target_iter = 0
@@ -132,7 +154,8 @@ class DQNN(nn.Module):
     return self.train_net(x)
 
   def forward_target(self, x):
-    return self.target_net(x)
+    with torch.no_grad():
+      return self.target_net(x)
 
 
   def train_dqn(self, batch, steps_nmbr):
@@ -153,17 +176,14 @@ class DQNN(nn.Module):
       self.scheduler.step()
 
   def eval_dqn(self, x):
-    with torch.no_grad():
-      return int(torch.argmax(self.forward_target(x[None, ...]), dim=1))
+    return int(torch.argmax(self.forward(x), dim=1))
 
   def target_switch(self, steps_nmbr):
     self.target_iter += 1
     if self.target_iter >= self.target_itermax:
       self.target_net.load_state_dict(self.train_net.state_dict())
-      self.target_iter = 0
+      self.target_iter = 1
       self.save_freq += 1
-      if self.save_freq & 3 == 0:
-        torch.save(self.state_dict(), f"checkpoints/deep-raw-q-model-{steps_nmbr}-{int(time()):5d}.pt")
   def load_model(self, path):
     self.load_state_dict(torch.load(path))
 
@@ -174,12 +194,13 @@ def choose_action(actions_values, eps: float=0.05):
 
 def train(lr, lr_decay, min_lr, itermax):
   try:
-    eps = 0.2
-    device = torch.device("cuda")
-    env = gym.make('CartPole-v1', )
-    transform = Transform(device)
-    buffer = BufferRaw(1<<16, device)
-    eps = max(eps*0.999, 0.05)
+    eps = 0.4
+    image_shape = (84, 84)
+    device = torch.device("cpu")
+    env = gym.make('CartPole-v1')
+    transform = Transform(device, image_shape)
+    buffer = BufferRaw(1<<10, device, (3, *image_shape))
+    eps = max(eps - 0.0001, 0.1)
     dqnn = DQNN(NN, lr=lr, lr_decay=lr_decay, min_lr=min_lr, itermax=itermax).to(device)
     for i_episode in range(int(1e5)):
       env.reset()
@@ -188,8 +209,8 @@ def train(lr, lr_decay, min_lr, itermax):
         state = newstate
         action = 0
         if i_episode & 255 == 0:
-          env.render(mode='human')
-          action = dqnn.eval_dqn(state)
+          env.render()
+          action = dqnn.eval_dqn(state[None, ...])
         else:
           actions_values = dqnn(state[None, ...])
           action = choose_action(actions_values, eps)
@@ -198,12 +219,11 @@ def train(lr, lr_decay, min_lr, itermax):
         buffer.push((state, action, newstate, reward, done))
         state = newstate
         if done:
-          dqnn.train_dqn(buffer.sample(1<<4), t+1)
-          if i_episode & 7 == 0:
-            if i_episode & 255 == 0:
-              print(f"Test episode {i_episode} finished after {t+1} steps")
-            else:
-              print(f"Episode {i_episode} finished after {t+1} steps")
+          dqnn.train_dqn(buffer.sample(1<<6), t+1)
+          if i_episode & 127 == 0:
+            print(f"Test: episode {i_episode} finished after {t+1} steps")
+          else:
+            print(f"Episode {i_episode} finished after {t+1} steps")
           break
 
     env.close()
@@ -211,7 +231,7 @@ def train(lr, lr_decay, min_lr, itermax):
     print("exit")
 
 def main():
-  train(1e-3, 0.999, 1e-4, 32)
+  train(3e-4, 0.9999, 1e-4, 128)
 
 if __name__  == "__main__":
   main()
