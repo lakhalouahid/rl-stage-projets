@@ -194,12 +194,12 @@ def train(lr, lr_decay, min_lr, itermax):
     image_shape = (84, 84)
     device = torch.device("cuda")
     env = gym.make('CartPole-v1')
-    eps = max(eps*0.999, 0.1)
     transform = Transform(device, image_shape)
-    buffer = BufferRaw(1<<12, device, (1, *image_shape), sequence_n)
+    buffer = BufferRaw(1<<17, device, (1, *image_shape), sequence_n)
     dqnn = DQNN(NN, sequence_n, lr=lr, lr_decay=lr_decay, min_lr=min_lr, itermax=itermax).to(device)
     for i_episode in range(int(1<<20)):
       env.reset()
+      eps = max(eps*0.999, 0.1)
       states = carray(sequence_n+1, image_shape, dtype=torch.float32, device=device)
       new_state = transform.prepare(env.render(mode='rgb_array'))
       buffer.push((new_state, 0, 0, -1))
@@ -233,7 +233,7 @@ def train(lr, lr_decay, min_lr, itermax):
     print("exit")
 
 def main():
-  train(3e-3, 0.9995, 2.5e-4, 0)
+  train(3e-3, 0.9995, 2.5e-4, 100)
 
 if __name__  == "__main__":
   main()
