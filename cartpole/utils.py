@@ -1,4 +1,9 @@
+from PIL import Image
+
+
+
 import numpy as np
+import torchvision.transforms as T
 
 
 class carray():
@@ -61,3 +66,19 @@ class Buffer():
     return (states, actions, newstates, rewards, dones)
 
 
+
+class Transform:
+  def __init__(self, device, image_shape):
+    self.device = device
+    self.to_PILImage = T.ToPILImage()
+    self.resize = T.Resize(image_shape, interpolation=Image.CUBIC)
+    self.to_grayscale = T.Grayscale()
+    self.from_PILImage = T.ToTensor()
+
+  def prepare(self, x):
+    x = x[0:400,100:500]
+    x = self.to_PILImage(x)
+    x = self.resize(x)
+    x = self.to_grayscale(x)
+    x = self.from_PILImage(x)
+    return x.to(self.device)
