@@ -1,4 +1,5 @@
 from PIL import Image
+import torch
 
 
 
@@ -81,4 +82,5 @@ class Transform:
     x = self.resize(x)
     x = self.to_grayscale(x)
     x = self.from_PILImage(x)
+    x = torch.as_tensor(x*255.0, dtype=torch.uint8)
     return x.to(self.device)

@@ -46,7 +46,7 @@ class carray():
 class BufferRaw():
   def __init__(self, maxlen: int, device, state_shape, sequence_n):
     self.state_shape = state_shape
-    self.states = carray(maxlen, state_shape, torch.float32, device)
+    self.states = carray(maxlen, state_shape, torch.uint8, device)
     self.actions = carray(maxlen, 1, torch.int8, device)
     self.rewards = carray(maxlen, 1, torch.int8, device)
     self.tokens = carray(maxlen, 1, torch.int8, device)
@@ -122,7 +122,7 @@ class NN(nn.Module):
 
 
 class DQNN(nn.Module):
-  def __init__(self, nntype, sequence_n, discount=0.9, lr=3e-4, lr_decay=0.999,
+  def __init__(self, nntype, sequence_n, discount=1, lr=3e-4, lr_decay=0.999,
       min_lr=3e-6, itermax=60):
     super(DQNN, self).__init__()
     self.train_net = nntype(sequence_n)
@@ -149,11 +149,11 @@ class DQNN(nn.Module):
   def train_dqn(self, batch, steps_nmbr):
     self.train_net.train()
     states, actions, rewards, dones = batch
+    states = torch.as_tensor(states, dtype=torch.float32) / 255.0
     q_newstates = self.forward_target(states[:, :self.sequence_n])
     maxq_newstates = torch.max(q_newstates, dim=1).values.reshape(-1, 1)
     maxq_newstates = (1 - torch.as_tensor(dones, dtype=torch.int32)) *  maxq_newstates
-    for param in self.train_net.parameters():
-      param.grad = None
+    self.optimizer.zero_grad()
     q_states = self(states[:, 1:self.sequence_n+1])
     loss = torch.mean((self.discount * maxq_newstates + rewards - \
         torch.take_along_dim(q_states, torch.as_tensor(actions, dtype=torch.int64), dim=1))**2)
@@ -172,7 +172,6 @@ class DQNN(nn.Module):
       self.target_net.load_state_dict(self.train_net.state_dict())
       self.target_net.eval()
       self.target_iter = 1
-      self.target_itermax = min(self.target_itermax + 1, 1<<10)
       self.save_freq += 1
       if self.save_freq & 255 == 0:
         torch.save(self.state_dict(), f"checkpoints/deep-raw-q-model-{steps_nmbr}-{int(time()):5d}.pt")
@@ -190,12 +189,12 @@ def choose_action(actions_values, eps: float=0.05):
 def train(lr, lr_decay, min_lr, itermax):
   try:
     eps = 1
-    sequence_n = 4
+    sequence_n = 2
     image_shape = (84, 84)
     device = torch.device("cuda")
     env = gym.make('CartPole-v1')
     transform = Transform(device, image_shape)
-    buffer = BufferRaw(1<<17, device, (1, *image_shape), sequence_n)
+    buffer = BufferRaw(1<<18, device, (1, *image_shape), sequence_n)
     dqnn = DQNN(NN, sequence_n, lr=lr, lr_decay=lr_decay, min_lr=min_lr, itermax=itermax).to(device)
     for i_episode in range(int(1<<20)):
       env.reset()
@@ -215,6 +214,7 @@ def train(lr, lr_decay, min_lr, itermax):
           action = choose_action(actions_values, eps)
         next_position, reward, done, _ = env.step(action)
         if abs(next_position[0]) > 3.2:
+          print(next_position[0])
           done = True
         new_state = transform.prepare(env.render(mode='rgb_array'))
         states.append(new_state)
@@ -233,7 +233,7 @@ def train(lr, lr_decay, min_lr, itermax):
     print("exit")
 
 def main():
-  train(3e-3, 0.9995, 2.5e-4, 100)
+  train(1e-2, 0.9995, 1e-3, 1000)
 
 if __name__  == "__main__":
   main()
