@@ -1,4 +1,5 @@
 import gym
+import random
 import torch
 import pdb
 
@@ -18,7 +19,7 @@ class carray():
       shape = (maxlen, *size)
     else:
       shape = (maxlen, size)
-    self.buf = torch.ones(shape, dtype=dtype).to(device)
+    self.buf = torch.zeros(shape, dtype=dtype).to(device)
     self.maxlen = maxlen
     self.head = 0
     self.len = 0
@@ -91,18 +92,21 @@ class NN(nn.Module):
     super(NN, self).__init__()
     self.cv =  nn.Sequential(
       nn.Conv2d(sequente_n, 32, kernel_size=8, stride=4), # 20
-      nn.LeakyReLU(inplace=True),
+      nn.BatchNorm2d(32),
+      nn.ReLU(inplace=True),
       nn.Conv2d(32, 64, kernel_size=4, stride=2), # 9
-      nn.LeakyReLU(inplace=True),
+      nn.BatchNorm2d(64),
+      nn.ReLU(inplace=True),
       nn.Conv2d(64, 128, kernel_size=3, stride=2), # 4
-      nn.LeakyReLU(inplace=True),
+      nn.BatchNorm2d(128),
+      nn.ReLU(inplace=True),
     )
 
     self.fc = nn.Sequential(
       nn.Linear(2048, 512),
-      nn.LeakyReLU(inplace=True),
+      nn.ReLU(inplace=True),
       nn.Linear(512, 32),
-      nn.LeakyReLU(inplace=True),
+      nn.ReLU(inplace=True),
       nn.Linear(32, 2),
     )
     for cv in self.cv.modules():
@@ -122,7 +126,7 @@ class NN(nn.Module):
 
 
 class DQNN(nn.Module):
-  def __init__(self, nntype, sequence_n, discount=1, lr=3e-4, lr_decay=0.999,
+  def __init__(self, nntype, sequence_n, discount=0.9, lr=3e-4, lr_decay=0.999,
       min_lr=3e-6, itermax=60):
     super(DQNN, self).__init__()
     self.train_net = nntype(sequence_n)
@@ -138,25 +142,24 @@ class DQNN(nn.Module):
     self.sequence_n = sequence_n
 
   def forward(self, x):
+    x = torch.as_tensor(x, dtype=torch.float32) / 255.0
     return self.train_net(x)
 
   def forward_target(self, x):
     with torch.no_grad():
-      self.target_net.eval()
+      x = torch.as_tensor(x, dtype=torch.float32) / 255.0
       return self.target_net(x)
 
 
   def train_dqn(self, batch, steps_nmbr):
     self.train_net.train()
     states, actions, rewards, dones = batch
-    states = torch.as_tensor(states, dtype=torch.float32) / 255.0
     q_newstates = self.forward_target(states[:, :self.sequence_n])
     maxq_newstates = torch.max(q_newstates, dim=1).values.reshape(-1, 1)
     maxq_newstates = (1 - torch.as_tensor(dones, dtype=torch.int32)) *  maxq_newstates
     self.optimizer.zero_grad()
     q_states = self(states[:, 1:self.sequence_n+1])
-    loss = torch.mean((self.discount * maxq_newstates + rewards - \
-        torch.take_along_dim(q_states, torch.as_tensor(actions, dtype=torch.int64), dim=1))**2)
+    loss = torch.mean((self.discount * maxq_newstates + rewards - torch.take_along_dim(q_states, torch.as_tensor(actions, dtype=torch.int64), dim=1))**2)
     loss.backward()
     self.optimizer.step()
     self.target_switch(steps_nmbr)
@@ -164,7 +167,8 @@ class DQNN(nn.Module):
       self.scheduler.step()
 
   def eval_dqn(self, x):
-    return int(torch.argmax(self.forward_target(x), dim=1))
+    with torch.no_grad():
+      return int(torch.argmax(self.forward(x), dim=1))
 
   def target_switch(self, steps_nmbr):
     self.target_iter += 1
@@ -188,7 +192,7 @@ def choose_action(actions_values, eps: float=0.05):
 
 def train(lr, lr_decay, min_lr, itermax):
   try:
-    eps = 1
+    eps = 0.2
     sequence_n = 2
     image_shape = (84, 84)
     device = torch.device("cuda")
@@ -197,35 +201,33 @@ def train(lr, lr_decay, min_lr, itermax):
     buffer = BufferRaw(1<<18, device, (1, *image_shape), sequence_n)
     dqnn = DQNN(NN, sequence_n, lr=lr, lr_decay=lr_decay, min_lr=min_lr, itermax=itermax).to(device)
     for i_episode in range(int(1<<20)):
-      env.reset()
-      eps = max(eps*0.999, 0.1)
+      env.reset(seed=random.randint(0, 1<<32-1))
+      eps = 0.05 + (eps - 0.05) * 0.9999
       states = carray(sequence_n+1, image_shape, dtype=torch.float32, device=device)
       new_state = transform.prepare(env.render(mode='rgb_array'))
       buffer.push((new_state, 0, 0, -1))
       for _ in range(sequence_n):
         states.append(new_state)
+      dqnn.train_net.eval()
       for t in range(500):
         if i_episode & 255 == 0:
           env.render()
           action = dqnn.eval_dqn(states.get_range_ilen(sequence_n)[None, ...])
         else:
-          dqnn.train_net.eval()
           actions_values = dqnn(states.get_range_ilen(sequence_n)[None, ...])
           action = choose_action(actions_values, eps)
         next_position, reward, done, _ = env.step(action)
         if abs(next_position[0]) > 3.2:
-          print(next_position[0])
           done = True
         new_state = transform.prepare(env.render(mode='rgb_array'))
         states.append(new_state)
         buffer.push((new_state, action, reward, done*1))
         if done:
-          if i_episode & 1 == 0:
-            dqnn.train_dqn(buffer.sample(1<<8), t+1)
+          dqnn.train_dqn(buffer.sample(1<<8), t+1)
           if i_episode & 127 == 0:
-            print(f"Test: episode {i_episode} finished after {t+1} steps")
+            print(f"Test: episode {i_episode} finished after {t+1} steps, eps = {eps}")
           else:
-            print(f"Episode {i_episode} finished after {t+1} steps")
+            print(f"Episode {i_episode} finished after {t+1} steps, eps = {eps}")
           break
 
     env.close()
@@ -233,7 +235,7 @@ def train(lr, lr_decay, min_lr, itermax):
     print("exit")
 
 def main():
-  train(1e-2, 0.9995, 1e-3, 1000)
+  train(5e-3, 0.9999, 1e-3, 80)
 
 if __name__  == "__main__":
   main()

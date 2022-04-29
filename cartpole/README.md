@@ -196,7 +196,7 @@ def test():
 
 #### Résultats:
 
-![video](./videos/video_.mp4)
+![vidéo d'entraìnement](./videos/video_.mp4)
 
 
 ## Version 2
