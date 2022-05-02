@@ -69,7 +69,6 @@ class Episode(object):
     self.a_ = torch.tensor(self.a, dtype=torch.float32)
     self.lp_ = torch.stack(self.lp)
 
-
 policy_net = PolicyNetwork()
 optimizer = torch.optim.Adam(policy_net.parameters(), lr=0.001)
 
