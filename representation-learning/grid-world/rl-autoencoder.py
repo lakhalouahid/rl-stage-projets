@@ -8,7 +8,7 @@ import numpy as np
 
 
 
-rom time import time
+from time import time
 from torch import nn
 from torchvision import transforms
 
@@ -18,6 +18,7 @@ logging.basicConfig(filename=f"logs/plain-autoencoder-{time():.0f}.log", format=
 w, h, n = 360, 360, 6
 a, b = w//n, h//n
 aa, bb = a-8, b-8
+lbd = 10.0
 
 
 
@@ -71,12 +72,13 @@ class GridWorld():
     self.grid = np.zeros((n, n), dtype=np.uint8)
     self.screen = pygame.Surface((w, h))
     self.screen.fill(bg_color)
-    self.b = np.zeros((n, n), dtype=np.float32)
-    self.n = np.ones((n, n), dtype=np.float32)
+    self.b = torch.zeros((n, n), dtype=torch.float32)
+    self.n_b = torch.ones((n, n), dtype=torch.float32)
+    self.frames = torch.empty((n, n, 3, w, h), dtype=torch.float32).to(device)
 
   def update_b(self, r):
-    self.b[self.idx_a, self.idx_b] += r / self.n[self.idx_a, self.idx_b]
-    self.n[self.idx_a, self.idx_b] = min(1.0 + self.n[self.idx_a, self.idx_b], 100)
+    self.b[self.idx_a, self.idx_b] += r / self.n_b[self.idx_a, self.idx_b]
+    self.n_b[self.idx_a, self.idx_b] = min(1.0 + self.n_b[self.idx_a, self.idx_b], 1000)
 
   def get_b(self):
     return self.b[self.idx_a, self.idx_b]
@@ -98,48 +100,43 @@ class GridWorld():
       else:
         pygame.draw.circle(self.screen, color, center, circ_radius)
 
+    idxs_a, idxs_b = np.where(self.grid == 0)
     color = colors[color_default]
+    for idx_a, idx_b in zip(idxs_a, idxs_b):
+      center = GridWorld.compute_center(idx_a, idx_b)
+      pygame.draw.circle(self.screen, color, center, circ_radius)
+      self.frames[idx_a, idx_b] = self.get_torch_frame()
+      rect = pygame.rect.Rect((center[0] - a//2, center[1] - b//2), (a, b))
+      pygame.draw.rect(self.screen, bg_color, rect)
+
     idxs_a, idxs_b = np.where(self.grid == 0)
     idx = np.random.randint(len(idxs_a))
     self.idx_a, self.idx_b = idxs_a[idx], idxs_b[idx]
-    center = GridWorld.compute_center(self.idx_a, self.idx_b)
-    pygame.draw.circle(self.screen, color, center, circ_radius)
     self.grid[self.idx_a, self.idx_b] = 1
+    return self.get_state()
 
   def get_state(self):
+    return self.frames[self.idx_a, self.idx_b], (self.idx_a, self.idx_b)
+
+  def get_torch_frame(self):
     frame = pygame.surfarray.pixels3d(self.screen)
-    pos = (self.idx_a, self.idx_b)
-    return GridWorld.to_float_tensor(frame), pos
+    return GridWorld.to_float_tensor(frame)
 
   def step(self, action):
-    color = colors[color_default]
     pos = (self.idx_a, self.idx_b)
     next_pos = GridWorld.move(pos, action)
     if self.grid[next_pos] == 0:
-      center = GridWorld.compute_center(*pos)
-      rect = pygame.rect.Rect((center[0] - a//2, center[1] - b//2), (a, b))
-      pygame.draw.rect(self.screen, bg_color, rect)
       self.grid[pos] = 0
-      center = GridWorld.compute_center(*next_pos)
-      pygame.draw.circle(self.screen, color, center, circ_radius)
       self.grid[next_pos] = 1
       self.idx_a = next_pos[0]
       self.idx_b = next_pos[1]
     return self.get_state()
 
   def simulate_step(self, action):
-    color = colors[color_default]
     pos = (self.idx_a, self.idx_b)
     next_pos = GridWorld.move(pos, action)
     if self.grid[next_pos] == 0:
-      center = GridWorld.compute_center(*pos)
-      rect = pygame.rect.Rect((center[0] - a//2, center[1] - b//2), (a, b))
-      next_screen = self.screen.copy()
-      pygame.draw.rect(next_screen, bg_color, rect)
-      center = GridWorld.compute_center(*next_pos)
-      pygame.draw.circle(next_screen, color, center, circ_radius)
-      frame = pygame.surfarray.pixels3d(next_screen)
-      return GridWorld.to_float_tensor(frame), next_pos
+      return self.frames[next_pos[0], next_pos[1]], next_pos
     else:
       return self.get_state()
 
@@ -148,8 +145,7 @@ class GridWorld():
     tr = GridWorld.action2move(action)
     next_a = max(min(pos[0] + tr[0], n-1), 0)
     next_b = max(min(pos[1] + tr[1], n-1), 0)
-    next_pos = (next_a, next_b)
-    return next_pos
+    return (next_a, next_b)
 
   @staticmethod
   def action2move(action):
@@ -157,9 +153,9 @@ class GridWorld():
 
   @staticmethod
   def to_float_tensor(frame):
-    frame = torch.from_numpy(np.asarray(frame, dtype=np.float32) / 255.0).to(device)
+    frame = torch.from_numpy(np.asarray(frame, dtype=np.float32) / 255.0)
     frame = torch.moveaxis(frame, 2, 0)
-    return frame[None, ...]
+    return frame
 
   @staticmethod
   def compute_center(idx_a, idx_b):
@@ -173,6 +169,13 @@ class GridWorld():
   def abs_coords_pts(c: tuple, pts: list):
     return [GridWorld.abs_coords_pt(c, pt) for pt in pts]
 
+class MatchNetwork(nn.Module):
+  def __init__(self):
+    super(MatchNetwork, self).__init__()
+    self.fc = nn.Linear(2, 2)
+
+  def forward(self, x):
+    return self.fc(x)
 
 class ConvEncoder(nn.Module):
 
@@ -332,7 +335,9 @@ class Buffer():
     self.l_idx = 0
 
 vanilla_autoencoder = VanillaAutoEncoder().to(device)
-ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=1e-4, weight_decay=0)
+ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=1e-4)
+match_network = MatchNetwork()
+mn_optimizer = torch.optim.Adam(params=match_network.parameters(), lr=1e-3)
 policies = [FeaturePolicy().to(device), FeaturePolicy().to(device)]
 pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=1e-4) for policy in policies]
 
@@ -342,13 +347,14 @@ def init_grid_world():
   return grid_world
 
 
+
 def train():
   grid_world = init_grid_world()
   state, pos = grid_world.get_state()
   steps = 100000
   for i in range(steps):
     ae_optimizer.zero_grad()
-    rstate, latent = vanilla_autoencoder.forward(state)
+    rstate, latent = vanilla_autoencoder.forward(state[None, ...])
     rloss = torch.sum(0.5 * torch.square(rstate - state))
     rloss.backward()
     ae_optimizer.step()
@@ -356,27 +362,28 @@ def train():
     for k in range(2):
       ae_optimizer.zero_grad()
       pc_optimizers[k].zero_grad()
-      rstate, latent = vanilla_autoencoder.forward(state)
+      rstate, latent = vanilla_autoencoder.forward(state[None, ...])
       prob_actions = policies[k].forward(latent)[0]
       action = np.random.choice(action_space, p=prob_actions.detach().cpu().numpy())
       lprob_action = torch.log(prob_actions[action])
       next_state, next_pos = grid_world.simulate_step(action)
-      next_rstate, next_latent = vanilla_autoencoder.forward(next_state)
+      next_rstate, next_latent = vanilla_autoencoder.forward(next_state[None, ...])
       latent = torch.squeeze(latent, 0)
       next_latent = torch.squeeze(next_latent, 0)
       if not torch.equal(next_latent, latent):
         reward = torch.abs(next_latent[k] - latent[k]) / torch.sum(torch.abs(next_latent - latent))
-        print(reward)
         grid_world.update_b(float(reward))
-        sloss = -lprob_action * (reward - grid_world.get_b())
+        sloss = -lprob_action * (reward - grid_world.get_b()) * lbd
         sloss.backward()
         pc_optimizers[k].step()
         ae_optimizer.step()
     state, pos = grid_world.step(np.random.randint(4))
+    mn_optimizer.zero_grad()
+    mn_loss = torch.sum(0.5 * torch.square(match_network(latent.detach().cpu()) - torch.tensor(pos, dtype=torch.float32)))
+    mn_loss.backward()
+    mn_optimizer.step()
     if i % 100 == 0 and i > 0:
-      print(pos, latent.detach().cpu().numpy().tolist())
-      print(sloss)
-      print(rloss)
+      print(f"rloss: {float(rloss):.3f}, sloss: {float(sloss):.6f}, mn_loss: {float(mn_loss):.3f}")
 
 if __name__ == '__main__':
   train()
