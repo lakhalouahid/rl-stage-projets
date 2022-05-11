@@ -1,6 +1,5 @@
 from math import ceil
 import os
-import argparse
 import pdb
 import torch
 import pygame
@@ -15,23 +14,31 @@ from torchvision import transforms
 
 device = torch.device("cuda:0")
 logging.basicConfig(filename=f"logs/plain-autoencoder-{time():.0f}.log", format="%(message)s", level=logging.INFO)
+n_features = 2
+batch_size = 512
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-r", "--rand", action="store_true")
-parser.add_argument("-l", "--lbd", type=float, default=1.0)
-args = parser.parse_args()
-
-w, h, n = 360, 360, 6
+w, h, n = 80, 80, 5
 a, b = w//n, h//n
-aa, bb = a-8, b-8
-lbd = args.lbd
+aa, bb = a-2, b-2
 eps = 0.25
 
+_b = torch.zeros((n_features, n, n), dtype=torch.float32).to(device)
+_n_b = torch.ones((n_features, n, n), dtype=torch.float32).to(device)
+
+def get_b(poses, k):
+  bs = torch.empty(size=(len(poses), 1), dtype=torch.float32).to(device)
+  for i, pos in enumerate(poses):
+    bs[i] = _b[k, pos[0], pos[1]]
+  return bs
+
+def update_b(poses, rewards, k):
+  for i, pos in enumerate(poses):
+    _b[k, pos[0], pos[1]] -= (_b[k, pos[0], pos[1]] - rewards[i][0]) / _n_b[k, pos[0], pos[1]]
+    _n_b[k, pos[0], pos[1]] += 1.0
 
 bg_color = (64, 64, 64)
 action_space = (0, 1, 2, 3)
 buffer_size = 1000
-batch_size = 10
 
 
 circ_center = (0, 0)
@@ -74,23 +81,14 @@ class GridWorld():
     self.grid = np.zeros((n, n), dtype=np.uint8)
     self.screen = pygame.Surface((w, h))
     self.screen.fill(bg_color)
-    self.b = torch.zeros((n, n), dtype=torch.float32)
-    self.n_b = torch.ones((n, n), dtype=torch.float32)
     self.frames = torch.empty((n, n, 3, w, h), dtype=torch.float32).to(device)
-
-  def update_b(self, r):
-    self.b[self.idx_a, self.idx_b] -= (self.b[self.idx_a, self.idx_b] - r) / self.n_b[self.idx_a, self.idx_b]
-    self.n_b[self.idx_a, self.idx_b] += 1.0
-
-  def get_b(self):
-    return self.b[self.idx_a, self.idx_b]
 
   def initialize(self):
     for _ in range(n_default):
       color = colors[np.random.randint(1, len(colors))]
       idxs_a, idxs_b = np.where(self.grid == 0)
-      idx = np.random.randint(len(idxs_a))
-      idx_a, idx_b = idxs_a[idx], idxs_b[idx]
+      idxs = np.random.randint(len(idxs_a))
+      idx_a, idx_b = idxs_a[idxs], idxs_b[idxs]
       self.grid[idx_a, idx_b] = 1
       center = GridWorld.compute_center(idx_a, idx_b)
       object_shape = np.random.randint(3)
@@ -111,36 +109,35 @@ class GridWorld():
       rect = pygame.rect.Rect((center[0] - a//2, center[1] - b//2), (a, b))
       pygame.draw.rect(self.screen, bg_color, rect)
 
+  def get_state_batch(self, batch_size):
     idxs_a, idxs_b = np.where(self.grid == 0)
-    idx = np.random.randint(len(idxs_a))
-    self.idx_a, self.idx_b = idxs_a[idx], idxs_b[idx]
-    self.grid[self.idx_a, self.idx_b] = 1
-    return self.get_state()
+    rand_idxs = torch.randperm(batch_size) % len(idxs_a)
+    poses = list(zip(idxs_b[rand_idxs], idxs_b[rand_idxs]))
+    frames = torch.empty(size=(batch_size, 3, w, h), dtype=torch.float32).to(device)
+    for i, pos in enumerate(poses):
+      frames[i] = self.frames[pos]
+    return frames, poses
 
-  def get_state(self):
-    return self.frames[self.idx_a, self.idx_b], (self.idx_a, self.idx_b)
+
 
   def get_torch_frame(self):
     frame = pygame.surfarray.pixels3d(self.screen)
     return GridWorld.to_float_tensor(frame)
 
-  def step(self, action):
-    pos = (self.idx_a, self.idx_b)
-    next_pos = GridWorld.move(pos, action)
-    if self.grid[next_pos] == 0:
-      self.grid[pos] = 0
-      self.grid[next_pos] = 1
-      self.idx_a = next_pos[0]
-      self.idx_b = next_pos[1]
-    return self.get_state()
+  def step(self, poses, actions, states):
+    next_states = torch.empty(len(actions), 3, w, h).to(device)
+    next_poses = []
+    for i, (pos, action) in enumerate(zip(poses, actions)):
+      next_pos = GridWorld.move(pos, action)
+      if self.grid[next_pos] == 0:
+        next_states[i] = self.frames[pos]
+        next_poses.append(pos)
+        # assert torch.equal(next_states[i], states[i]), "action didn't change the state, but next_state != state"
+      else:
+        next_states[i] = self.frames[next_pos]
+        next_poses.append(next_pos)
 
-  def simulate_step(self, action):
-    pos = (self.idx_a, self.idx_b)
-    next_pos = GridWorld.move(pos, action)
-    if self.grid[next_pos] == 0:
-      return self.frames[next_pos[0], next_pos[1]], next_pos
-    else:
-      return self.get_state()
+    return next_states, next_poses
 
   @staticmethod
   def move(pos, action):
@@ -171,33 +168,22 @@ class GridWorld():
   def abs_coords_pts(c: tuple, pts: list):
     return [GridWorld.abs_coords_pt(c, pt) for pt in pts]
 
-class MatchNetwork(nn.Module):
-  def __init__(self):
-    super(MatchNetwork, self).__init__()
-    self.fc = nn.Linear(2, 2)
-
-  def forward(self, x):
-    return self.fc(x)
-
 class ConvEncoder(nn.Module):
 
   def __init__(self):
     super(ConvEncoder, self).__init__()
     self.net = nn.Sequential(
-      nn.Conv2d(3, 32, kernel_size=8, stride=4, bias=False),
+      nn.Conv2d(3, 32, kernel_size=4, stride=4, bias=False),
       nn.BatchNorm2d(32),
       nn.LeakyReLU(inplace=True),
-      nn.Conv2d(32, 64, kernel_size=5, stride=4, bias=False),
+      nn.Conv2d(32, 64, kernel_size=4, stride=4, bias=False),
       nn.BatchNorm2d(64),
       nn.LeakyReLU(inplace=True),
-      nn.Conv2d(64, 128, kernel_size=4, stride=3, bias=False),
+      nn.Conv2d(64, 128, kernel_size=3, stride=2, bias=False),
       nn.BatchNorm2d(128),
       nn.LeakyReLU(inplace=True),
-      nn.Conv2d(128, 256, kernel_size=3, stride=2, bias=False),
+      nn.Conv2d(128, 256, kernel_size=2, stride=1, bias=False),
       nn.BatchNorm2d(256),
-      nn.LeakyReLU(inplace=True),
-      nn.Conv2d(256, 512, kernel_size=3, stride=1, bias=False),
-      nn.LeakyReLU(inplace=True),
     )
 
     for l in self.net.modules():
@@ -207,6 +193,15 @@ class ConvEncoder(nn.Module):
   def forward(self, x):
     return self.net(x)
 
+  def beval(self):
+    for l in self.net.modules():
+      if isinstance(l, nn.BatchNorm2d):
+        l.eval()
+
+  def btrain(self):
+    for l in self.net.modules():
+      if isinstance(l, nn.BatchNorm2d):
+        l.train()
 
 class ConvDecoder(nn.Module):
 
@@ -214,19 +209,16 @@ class ConvDecoder(nn.Module):
 
     super(ConvDecoder, self).__init__()
     self.net = nn.Sequential(
-      nn.ConvTranspose2d(512, 256, kernel_size=3, stride=1, bias=False),
-      nn.BatchNorm2d(256),
-      nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, bias=False),
+      nn.ConvTranspose2d(256, 128, kernel_size=2, stride=1, bias=False),
       nn.BatchNorm2d(128),
       nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(128, 64, kernel_size=4, stride=3, bias=False),
+      nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, bias=False),
       nn.BatchNorm2d(64),
       nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(64, 32, kernel_size=5, stride=4, bias=False),
+      nn.ConvTranspose2d(64, 32, kernel_size=4, stride=4, bias=False),
       nn.BatchNorm2d(32),
       nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(32, 3, kernel_size=8, stride=4, bias=True),
+      nn.ConvTranspose2d(32, 3, kernel_size=4, stride=4, bias=True),
       nn.Sigmoid(),
     )
     for l in self.net.modules():
@@ -236,6 +228,15 @@ class ConvDecoder(nn.Module):
   def forward(self, x):
     return self.net(x)
 
+  def beval(self):
+    for l in self.net.modules():
+      if isinstance(l, nn.BatchNorm2d):
+        l.eval()
+
+  def btrain(self):
+    for l in self.net.modules():
+      if isinstance(l, nn.BatchNorm2d):
+        l.train()
 
 class VanillaAutoEncoder(nn.Module):
 
@@ -243,15 +244,15 @@ class VanillaAutoEncoder(nn.Module):
     super(VanillaAutoEncoder, self).__init__()
     self.cv_enc = ConvEncoder()
     self.fc_enc = nn.Sequential(
-      nn.Linear(512, 32),
+      nn.Linear(256, 32),
       nn.LeakyReLU(inplace=True),
       nn.Linear(32, 2),
     )
     self.fc_dec = nn.Sequential(
       nn.Linear(2, 32),
-      nn.LeakyReLU(inplace=True),
-      nn.Linear(32, 512),
-      nn.LeakyReLU(inplace=True),
+      nn.ReLU(inplace=True),
+      nn.Linear(32, 256),
+      nn.ReLU(inplace=True),
     )
     self.cv_dec = ConvDecoder()
 
@@ -273,6 +274,12 @@ class VanillaAutoEncoder(nn.Module):
     x = x[..., None, None]
     x = self.cv_dec(x)
     return x, h
+
+  def beval(self):
+    self.cv_enc.beval()
+
+  def btrain(self):
+    self.cv_enc.btrain()
 
   def encode(self, x):
     x = self.cv_enc(x)
@@ -298,9 +305,16 @@ class FeaturePolicy(nn.Module):
   def forward(self, x):
     x = self.fc(x)
     x = torch.softmax(x, dim=1)
-    x = (x + 0.01) / (1 + 0.04)
+    x = (x + 0.001) / (1 + 0.001*4)
     return x
 
+class MatchNetwork(nn.Module):
+  def __init__(self):
+    super(MatchNetwork, self).__init__()
+    self.fc = nn.Linear(2, 2)
+
+  def forward(self, x):
+    return self.fc(x)
 
 class Buffer():
 
@@ -336,16 +350,15 @@ class Buffer():
     self.p_idx = 0
     self.l_idx = 0
 
-n_features = 2
 
 vanilla_autoencoder = VanillaAutoEncoder().to(device)
-ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=3e-5)
+ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=1e-4)
 
-match_network = MatchNetwork()
-mn_optimizer = torch.optim.Adam(params=match_network.parameters(), lr=3e-4)
+match_network = MatchNetwork().to(device)
+mn_optimizer = torch.optim.Adam(params=match_network.parameters(), lr=1e-4)
 
 policies = [FeaturePolicy().to(device) for _ in range(n_features)]
-pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=3e-5) for policy in policies]
+pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=1e-4) for policy in policies]
 
 def init_grid_world():
   grid_world = GridWorld()
@@ -353,60 +366,61 @@ def init_grid_world():
   return grid_world
 
 avg_w = 1000
+batch_loop = 100000
 
+
+def sample_actions(prob_actions):
+  actions = torch.empty((batch_size, 1), dtype=torch.int64).to(device)
+  for i in range(batch_size):
+    actions[i][0] = np.random.choice(action_space, p=prob_actions[i].detach().cpu().numpy())
+  return actions
+
+kkk = 20
 def train():
   grid_world = init_grid_world()
-  state, pos = grid_world.get_state()
-  steps = 1000000
-  sloss_avg = [0.0, 0.0]
-  reward_avg = [0.0, 0.0]
-  rloss_avg = 0.0
-  mloss_avg = 0.0
-  for i in range(steps):
-    vanilla_autoencoder.zero_grad()
-    rstate, latent = vanilla_autoencoder.forward(state[None, ...])
-    rloss = torch.sum(0.5 * torch.square(rstate - state))
-    rloss_avg -= (rloss_avg - float(rloss)) / avg_w
+  for i in range(batch_loop):
+    vanilla_autoencoder.btrain()
+    ae_optimizer.zero_grad()
+    states, poses = grid_world.get_state_batch(batch_size)
+    rstates, _latents = vanilla_autoencoder.forward(states)
+    rloss = torch.sum(torch.sum(0.5 * torch.square(rstates - states), dim=1))
     rloss.backward()
     ae_optimizer.step()
-    reward = 0
     for k in range(2):
-      vanilla_autoencoder.zero_grad()
+      vanilla_autoencoder.beval()
+      ae_optimizer.zero_grad()
       policies[k].zero_grad()
-      latent = vanilla_autoencoder.encode(state[None, ...])
-      prob_actions = policies[k].forward(latent)[0]
-      if np.random.random() < eps and args.rand == False:
-        action = np.random.choice(action_space)
-      else:
-        action = np.random.choice(action_space, p=prob_actions.detach().cpu().numpy())
-      lprob_action = torch.log(prob_actions[action])
-      next_state, _ = grid_world.simulate_step(action)
-      next_latent = vanilla_autoencoder.encode(next_state[None, ...])
-      latent = torch.squeeze(latent, 0)
-      next_latent = torch.squeeze(next_latent, 0)
-
-      if not torch.equal(next_latent, latent):
-        reward = torch.abs(next_latent[k] - latent[k]) / torch.sum(torch.abs(next_latent - latent))
-        reward_avg[k] -= (reward_avg[k] - float(reward)) / avg_w
-        grid_world.update_b(float(reward))
-        sloss = -lprob_action * (reward - grid_world.get_b()) * lbd
-        sloss_avg[k] -= (sloss_avg[k] - float(sloss)) / avg_w
+      latents = vanilla_autoencoder.encode(states.to(device))
+      prob_actions = policies[k].forward(latents)
+      actions = sample_actions(prob_actions)
+      lprob_actions = torch.log(prob_actions.take_along_dim(actions, dim=1))
+      next_states, _ = grid_world.step(poses, actions, states)
+      next_latents = vanilla_autoencoder.encode(next_states.to(device))
+      dlatents = torch.abs(next_latents - latents.detach())
+      is_moved = torch.any(dlatents, dim=1)
+      if torch.any(is_moved):
+        c_poses = [poses[i] for i in range(len(poses)) if is_moved[i] == True]
+        c_dlatents = dlatents[is_moved]
+        c_lprob_actions = lprob_actions[is_moved]
+        rewards  = c_dlatents[:, k:k+1] / torch.sum(c_dlatents, dim=1, keepdim=True)
+        update_b(c_poses, rewards.detach(), k)
+        mean_rewards = get_b(c_poses, k)
+        sloss = torch.sum(-c_lprob_actions * (rewards - mean_rewards))
         sloss.backward()
         pc_optimizers[k].step()
         ae_optimizer.step()
-        if i % 25 == 0:
+        if i % kkk == 0:
           print(f"policky {k} --------")
-          print(f"reward: {reward_avg[k]:.2f}")
-          print(f"sloss: {sloss_avg[k]:.6f}")
-          print(f"rloss: {rloss_avg:.3f}")
-    state, pos = grid_world.step(np.random.randint(4))
+          print(f"sloss: {sloss:.6f}")
+          print(f"rloss: {rloss:.6f}")
     match_network.zero_grad()
-    mn_loss = torch.sum(0.5 * torch.square(match_network(latent.detach().cpu()) - torch.tensor(pos, dtype=torch.float32)))
+    mn_error = match_network(_latents.detach()) - torch.tensor(poses, dtype=torch.float32).to(device)
+    mn_loss = torch.sum(torch.sum(0.5 * torch.square(mn_error), dim=1))
     mn_loss.backward()
-    mloss_avg -= (mloss_avg - float(mn_loss)) / 1000
     mn_optimizer.step()
-    if i % 25 == 0 and reward != 0:
-      print(f"mn_loss: {mloss_avg:.3f}")
+    logging.info(f"{rloss:.3f},{mn_loss:.3f}")
+    if i % kkk == 0:
+      print(f"mn_loss: {mn_loss:.3f}, len: {_latents.shape[0]}")
       print("---------------------------------------------------------")
 
 if __name__ == '__main__':
