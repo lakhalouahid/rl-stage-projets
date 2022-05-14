@@ -242,7 +242,9 @@ moves = torch.tensor([
 ])
 
 def actions2move(actions):
-  return moves[actions]
+  # return moves[actions]
+  directions = moves[actions]
+  return directions * torch.randint_like(directions, 1, n)
 
 grid_world = init_grid_world()
 
