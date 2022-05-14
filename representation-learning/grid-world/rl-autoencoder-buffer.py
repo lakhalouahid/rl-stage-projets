@@ -19,7 +19,7 @@ batch_size = 512
 
 w, h, n = 80, 80, 5
 a, b = w//n, h//n
-aa, bb = a-2, b-2
+aa, bb = a - 2, b - 2
 eps = 0.25
 
 _b = torch.zeros((n_features, n, n), dtype=torch.float32).to(device)
