@@ -18,6 +18,7 @@ parser.add_argument("-f", "--file")
 parser.add_argument("-t", "--test", action="store_true")
 parser.add_argument("-p", "--plain", action="store_true")
 parser.add_argument("-b", "--lbd", type=float, default=1.0)
+parser.add_argument("-e", "--exp", type=float, default=1.5)
 args = parser.parse_args()
 device = torch.device("cuda:0")
 logfile = "logs/autoencoder-{'plain' if args.plain else 'simple'}-{time():.0f}.log"
@@ -280,17 +281,17 @@ def train():
         elif float(rloss) > 800:
           sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd
         elif float(rloss) > 400:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * 1.5
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * args.exp
         elif float(rloss) > 200:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**2)
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**2)
         elif float(rloss) > 100:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**3)
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**3)
         elif float(rloss) > 50:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**4)
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**4)
         elif float(rloss) > 25:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**5)
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**5)
         else:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**6)
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**6)
         sloss[k].backward()
         if i % 20 == 0:
           print(f"policy loss {k}: {sloss[k]:.3f}")
