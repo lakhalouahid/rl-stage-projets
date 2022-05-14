@@ -251,7 +251,6 @@ def train():
     states, poses = grid_world.sample()
     rstates, _latents = vanilla_autoencoder.forward(states)
     rloss = torch.sum(torch.sum(0.5 * torch.square(rstates - states), dim=1))
-    rloss = torch.nn.MSELoss()(rstates, states)
     rloss.backward()
     if args.plain:
       ae_optimizer.step()
