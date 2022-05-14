@@ -20,6 +20,7 @@ parser.add_argument("-p", "--plain", action="store_true")
 parser.add_argument("-b", "--lbd", type=float, default=1.0)
 parser.add_argument("-e", "--exp", type=float, default=1.5)
 parser.add_argument("-d", "--decay", type=float, default=0.9995)
+parser.add_argument("-r", "--repeat", type=int, default=250000)
 args = parser.parse_args()
 device = torch.device("cuda:0")
 logfile = "logs/autoencoder-{'plain' if args.plain else 'simple'}-{time():.0f}.log"
@@ -256,7 +257,7 @@ def actions2move(actions, rlossistoobig):
 grid_world = init_grid_world()
 
 def train():
-  for i in range(250000):
+  for i in range(args.repeat):
     states, poses = grid_world.sample()
     rstates, _latents = vanilla_autoencoder.forward(states)
     rloss = torch.sum(torch.sum(0.5 * torch.square(rstates - states), dim=1))
