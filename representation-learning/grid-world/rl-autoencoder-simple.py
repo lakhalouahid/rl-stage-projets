@@ -315,7 +315,7 @@ def train():
       print("---------------------------------------------------------")
 
     if i % 10000 == 0 :
-      filename = os.path.join("checkpoints", f"{'plain' if args.plain else 'simple'}-ae-{time():.0f}-{rloss}-{lbd}-{args.exp:0f}.pt")
+      filename = os.path.join("checkpoints", f"{'plain' if args.plain else 'simple'}-ae-{time():.0f}-{rloss}-{lbd}-{args.exp:0f}-{args.decay}.pt")
       torch.save(vanilla_autoencoder.state_dict(), filename)
 
 
