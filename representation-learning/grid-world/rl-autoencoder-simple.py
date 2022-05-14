@@ -19,6 +19,7 @@ parser.add_argument("-t", "--test", action="store_true")
 parser.add_argument("-p", "--plain", action="store_true")
 parser.add_argument("-b", "--lbd", type=float, default=1.0)
 parser.add_argument("-e", "--exp", type=float, default=1.5)
+parser.add_argument("-d", "--decay", type=float, default=0.9995)
 args = parser.parse_args()
 device = torch.device("cuda:0")
 logfile = "logs/autoencoder-{'plain' if args.plain else 'simple'}-{time():.0f}.log"
@@ -215,13 +216,16 @@ class FeaturePolicy(nn.Module):
     x = torch.softmax(x, dim=1)
     x = (x + 0.001) / (1 + 0.001*4)
     return x
-lr=1e-5
+minlr=1e-5
+maxlr=1e-4
 lbd=args.lbd
 vanilla_autoencoder = VanillaAutoEncoder().to(device)
-ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=lr)
+ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=maxlr)
+ae_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=ae_optimizer, gamma=args.decay)
 
 policies = [FeaturePolicy().to(device) for _ in range(2)]
-pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=lr) for policy in policies]
+pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=maxlr) for policy in policies]
+pc_schedulers = [torch.optim.lr_scheduler.ExponentialLR(optimizer=pc_optimizer, gamma=args.decay) for pc_optimizer in pc_optimizers]
 
 def init_grid_world():
   grid_world = GW()
@@ -301,6 +305,10 @@ def train():
       pc_optimizers[0].zero_grad()
       pc_optimizers[1].zero_grad()
       ae_optimizer.zero_grad()
+      if ae_scheduler.get_lr()[0] > minlr:
+        ae_scheduler.step()
+        pc_optimizers[0].step()
+        pc_optimizers[1].step()
       logging.info(f"{rloss},{sloss[0]},{sloss[0]}")
     if i % 20 == 0:
       print(f"r_loss: {rloss:.3f}")
