@@ -117,15 +117,13 @@ class ConvEncoder(nn.Module):
   def __init__(self):
     super(ConvEncoder, self).__init__()
     self.net = nn.Sequential(
-      nn.Conv2d(1, 4, kernel_size=2, stride=2, bias=True),
+      nn.Conv2d(1, 4, kernel_size=4, stride=4, bias=True),
       nn.LeakyReLU(inplace=True),
-      nn.Conv2d(4, 8, kernel_size=2, stride=2, bias=True),
+      nn.Conv2d(4, 8, kernel_size=4, stride=4, bias=True),
       nn.LeakyReLU(inplace=True),
-      nn.Conv2d(8, 16, kernel_size=4, stride=4, bias=True),
+      nn.Conv2d(8, 16, kernel_size=3, stride=2, bias=True),
       nn.LeakyReLU(inplace=True),
-      nn.Conv2d(16, 32, kernel_size=3, stride=2, bias=True),
-      nn.LeakyReLU(inplace=True),
-      nn.Conv2d(32, 64, kernel_size=2, stride=1, bias=True),
+      nn.Conv2d(16, 32, kernel_size=2, stride=1, bias=True),
     )
 
     for l in self.net.modules():
@@ -141,15 +139,15 @@ class ConvDecoder(nn.Module):
 
     super(ConvDecoder, self).__init__()
     self.net = nn.Sequential(
-      nn.ConvTranspose2d(64, 32, kernel_size=2, stride=1, bias=True),
+      nn.ConvTranspose2d(32, 16, kernel_size=2, stride=1, bias=True),
       nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(32, 16, kernel_size=3, stride=2, bias=True),
+      nn.ConvTranspose2d(16, 8, kernel_size=3, stride=2, bias=True),
       nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(16, 8, kernel_size=4, stride=4, bias=True),
+      nn.ConvTranspose2d(8, 4, kernel_size=4, stride=4, bias=True),
       nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(8, 4, kernel_size=2, stride=2, bias=True),
+      nn.ConvTranspose2d(4, 2, kernel_size=2, stride=2, bias=True),
       nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(4, 1, kernel_size=2, stride=2, bias=True),
+      nn.ConvTranspose2d(2, 1, kernel_size=2, stride=2, bias=True),
       nn.Sigmoid(),
     )
     for l in self.net.modules():
@@ -166,14 +164,14 @@ class VanillaAutoEncoder(nn.Module):
     super(VanillaAutoEncoder, self).__init__()
     self.cv_enc = ConvEncoder()
     self.fc_enc = nn.Sequential(
-      nn.Linear(64, 16),
+      nn.Linear(32, 8),
       nn.ReLU(inplace=True),
-      nn.Linear(16, 2),
+      nn.Linear(8, 2),
     )
     self.fc_dec = nn.Sequential(
-      nn.Linear(2, 16),
+      nn.Linear(2, 8),
       nn.ReLU(inplace=True),
-      nn.Linear(16, 64),
+      nn.Linear(8, 32),
       nn.ReLU(inplace=True),
     )
     self.cv_dec = ConvDecoder()
@@ -209,13 +207,13 @@ class FeaturePolicy(nn.Module):
   def __init__(self):
     super(FeaturePolicy, self).__init__()
     self.fc = nn.Sequential(
-        nn.Linear(1, 4),
+        nn.Linear(2, 4),
     )
 
   def forward(self, x):
     x = self.fc(x)
     x = torch.softmax(x, dim=1)
-    x = (x + 0.001) / (1 + 0.001*4)
+    x = (x + 0.01) / (1 + 0.01*4)
     return x
 minlr=1e-5
 maxlr=1e-4
