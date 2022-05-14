@@ -241,10 +241,12 @@ moves = torch.tensor([
   [0, +1],
 ])
 
-def actions2move(actions):
-  # return moves[actions]
-  directions = moves[actions]
-  return directions * torch.randint_like(directions, 1, n)
+def actions2move(actions, rlossistoobig):
+  if rlossistoobig:
+    return moves[actions]
+  else:
+    directions = moves[actions]
+    return directions * torch.randint_like(directions, 1, n)
 
 grid_world = init_grid_world()
 
@@ -265,7 +267,7 @@ def train():
         prob_actions = policies[k].forward(latents[:,k:k+1])
         actions = sample_actions(prob_actions)
         lprob_actions = torch.log(prob_actions.take_along_dim(actions[..., None], dim=1))
-        _moves = actions2move(actions)
+        _moves = actions2move(actions, float(rloss) > 1600)
         next_states, _ = grid_world.step(poses, _moves)
         next_latents = vanilla_autoencoder.encode(next_states.to(device))
         dlatents = torch.abs(next_latents - latents.detach())
