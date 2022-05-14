@@ -268,7 +268,7 @@ def train():
       for k in range(2):
         policies[k].zero_grad()
         latents = vanilla_autoencoder.encode(states.to(device))
-        prob_actions = policies[k].forward(latents[:,k:k+1])
+        prob_actions = policies[k].forward(latents)
         actions = sample_actions(prob_actions)
         lprob_actions = torch.log(prob_actions.take_along_dim(actions[..., None], dim=1))
         _moves = actions2move(actions, float(rloss) > 1600)
