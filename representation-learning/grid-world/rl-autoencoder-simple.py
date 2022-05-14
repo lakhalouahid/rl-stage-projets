@@ -256,9 +256,6 @@ def train():
     if args.plain:
       ae_optimizer.step()
       ae_optimizer.zero_grad()
-      if i % 20 == 0:
-        print(f"r_loss: {rloss:.3f}")
-        print("---------------------------------------------------------")
     else:
       sloss = [0, 0]
       for k in range(2):
@@ -275,7 +272,22 @@ def train():
         # update_b(poses, rewards.detach(), k)
         # mean_rewards = get_b(poses, k)
         # sloss[k] = torch.sum(-lprob_actions * (rewards - mean_rewards)) * lbd
-        sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd
+        if float(rloss) > 1600:
+          sloss[k] = torch.sum(-lprob_actions * rewards )
+        elif float(rloss) > 800:
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd
+        elif float(rloss) > 400:
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * 1.5
+        elif float(rloss) > 200:
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**2)
+        elif float(rloss) > 100:
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**3)
+        elif float(rloss) > 50:
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**4)
+        elif float(rloss) > 25:
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**5)
+        else:
+          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (1.5**6)
         sloss[k].backward()
         if i % 20 == 0:
           print(f"policy loss {k}: {sloss[k]:.3f}")
@@ -286,9 +298,9 @@ def train():
       pc_optimizers[1].zero_grad()
       ae_optimizer.zero_grad()
       logging.info(f"{rloss},{sloss[0]},{sloss[0]}")
-      if i % 20 == 0:
-        print(f"r_loss: {rloss:.3f}")
-        print("---------------------------------------------------------")
+    if i % 20 == 0:
+      print(f"r_loss: {rloss:.3f}")
+      print("---------------------------------------------------------")
 
     if i % 10000 == 0 :
       filename = os.path.join("checkpoints", f"{'plain' if args.plain else 'simple'}-ae-{time():.0f}-{rloss}-{lbd}.pt")
