@@ -219,11 +219,11 @@ minlr=1e-5
 maxlr=1e-4
 lbd=args.lbd
 vanilla_autoencoder = VanillaAutoEncoder().to(device)
-ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=maxlr)
+ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=maxlr, weight_decay=0.005)
 ae_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=ae_optimizer, gamma=args.decay)
 
 policies = [FeaturePolicy().to(device) for _ in range(2)]
-pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=maxlr) for policy in policies]
+pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=maxlr, weight_decay=0.005) for policy in policies]
 pc_schedulers = [torch.optim.lr_scheduler.ExponentialLR(optimizer=pc_optimizer, gamma=args.decay) for pc_optimizer in pc_optimizers]
 
 def init_grid_world():
