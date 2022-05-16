@@ -118,12 +118,16 @@ class ConvEncoder(nn.Module):
     super(ConvEncoder, self).__init__()
     self.net = nn.Sequential(
       nn.Conv2d(1, 4, kernel_size=4, stride=4, bias=True),
+      nn.BatchNorm2d(4),
       nn.LeakyReLU(inplace=True),
       nn.Conv2d(4, 8, kernel_size=4, stride=4, bias=True),
+      nn.BatchNorm2d(8),
       nn.LeakyReLU(inplace=True),
       nn.Conv2d(8, 16, kernel_size=3, stride=2, bias=True),
+      nn.BatchNorm2d(16),
       nn.LeakyReLU(inplace=True),
       nn.Conv2d(16, 32, kernel_size=2, stride=1, bias=True),
+      nn.BatchNorm2d(32),
     )
 
     for l in self.net.modules():
@@ -140,12 +144,16 @@ class ConvDecoder(nn.Module):
     super(ConvDecoder, self).__init__()
     self.net = nn.Sequential(
       nn.ConvTranspose2d(32, 16, kernel_size=2, stride=1, bias=True),
+      nn.BatchNorm2d(16),
       nn.ReLU(inplace=True),
       nn.ConvTranspose2d(16, 8, kernel_size=3, stride=2, bias=True),
+      nn.BatchNorm2d(8),
       nn.ReLU(inplace=True),
       nn.ConvTranspose2d(8, 4, kernel_size=4, stride=4, bias=True),
+      nn.BatchNorm2d(4),
       nn.ReLU(inplace=True),
       nn.ConvTranspose2d(4, 2, kernel_size=2, stride=2, bias=True),
+      nn.BatchNorm2d(2),
       nn.ReLU(inplace=True),
       nn.ConvTranspose2d(2, 1, kernel_size=2, stride=2, bias=True),
       nn.Sigmoid(),
@@ -219,11 +227,11 @@ minlr=1e-5
 maxlr=1e-4
 lbd=args.lbd
 vanilla_autoencoder = VanillaAutoEncoder().to(device)
-ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=maxlr, weight_decay=0.005)
+ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=maxlr, weight_decay=0.2)
 ae_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=ae_optimizer, gamma=args.decay)
 
 policies = [FeaturePolicy().to(device) for _ in range(2)]
-pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=maxlr, weight_decay=0.005) for policy in policies]
+pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=maxlr, weight_decay=0.2) for policy in policies]
 pc_schedulers = [torch.optim.lr_scheduler.ExponentialLR(optimizer=pc_optimizer, gamma=args.decay) for pc_optimizer in pc_optimizers]
 
 def init_grid_world():
@@ -256,6 +264,7 @@ grid_world = init_grid_world()
 
 def train():
   for i in range(args.repeat):
+    vanilla_autoencoder.train()
     states, poses = grid_world.sample()
     rstates, _latents = vanilla_autoencoder.forward(states)
     rloss = torch.sum(torch.sum(0.5 * torch.square(rstates - states), dim=1))
@@ -265,6 +274,7 @@ def train():
       ae_optimizer.zero_grad()
     else:
       sloss = [0, 0]
+      vanilla_autoencoder.eval()
       for k in range(2):
         policies[k].zero_grad()
         latents = vanilla_autoencoder.encode(states.to(device))
