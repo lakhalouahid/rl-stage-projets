@@ -23,45 +23,23 @@ parser.add_argument("-d", "--decay", type=float, default=0.9995)
 parser.add_argument("-r", "--repeat", type=int, default=250000)
 args = parser.parse_args()
 device = torch.device("cuda:0")
-logfile = f"logs/autoencoder-{'plain' if args.plain else 'simple'}-{time():.0f}.log"
+logfile = f"logs/autoencoder-{'plain' if args.plain else 'silly'}-{time():.0f}.log"
 if not args.test:
   logging.basicConfig(filename=logfile, format="%(message)s", level=logging.INFO)
 
-w, h, n = 80, 80, 5
+w, h, n = 5, 5, 5
 a, b = w//n, h//n
 
-mean_rewards = torch.zeros((2, n, n), dtype=torch.float32).to(device)
-mean_rewards_count = torch.ones((2, n, n), dtype=torch.float32).to(device)
-
-def get_b(poses, k):
-  return mean_rewards[k][poses]
-
-def update_b(poses, rewards, k):
-  mean_rewards[k][poses] -= (mean_rewards[k][poses] - rewards[:, 0]) / mean_rewards_count[k][poses]
-  mean_rewards_count[k][poses] += 1.0
-
-bg_color = (255, 255, 255)
 action_space = (0, 1, 2, 3)
-
-color = (0, 0, 0)
-circle_center = (0, 0)
-circle_radius = min(a//2, b//2)
-
 
 class GW():
   def __init__(self):
-    self.screen = pygame.Surface((w, h))
-    self.screen.fill(bg_color)
-    self.frames = torch.empty((n, n, 1, w, h), dtype=torch.float32).to(device)
+    self.frames = torch.zeros((n, n, 1, w, h), dtype=torch.float32).to(device)
 
   def initialize(self):
     for idx_a in range(n):
       for idx_b in range(n):
-        center = GW.compute_center(idx_a, idx_b)
-        pygame.draw.circle(self.screen, color, center, circle_radius)
-        self.frames[idx_a, idx_b] = self.get_torch_frame()
-        rect = pygame.rect.Rect((center[0] - a//2, center[1] - b//2), (a, b))
-        pygame.draw.rect(self.screen, bg_color, rect)
+        self.frames[idx_a, idx_b, 0, idx_a, idx_b] = 1.0
 
   def visualize(self):
     f, axes = plt.subplots(n, n)
@@ -81,26 +59,10 @@ class GW():
         break
     plt.show(block=False)
 
-  def get_torch_frame(self):
-    frame = pygame.surfarray.pixels3d(self.screen)
-    return GW.to_float_tensor(frame[:, :, :1])
-
-  @staticmethod
-  def to_float_tensor(frame):
-    frame = torch.from_numpy(np.asarray(frame, dtype=np.float32) / 255.0)
-    frame = torch.moveaxis(frame, 2, 0)
-    return frame
-
-  @staticmethod
-  def compute_center(idx_a, idx_b):
-    return (idx_a * a + a//2, idx_b * b + b//2)
-
-
   def sample(self):
     sampled_flat_indexes = np.random.permutation(n*n)
     poses = np.unravel_index(sampled_flat_indexes, shape=(n, n))
     frames = self.frames[poses]
-    # GW.visualize_frames(frames)
     return frames, poses
 
   def step(self, poses, actions):
@@ -108,7 +70,6 @@ class GW():
     actions = (actions[:, 0], actions[:, 1])
     next_poses = tuple([(_poses + _actions + n) % n for _poses, _actions in zip(poses, actions)])
     frames = self.frames[next_poses]
-    # GW.visualize_frames(frames)
     return frames, poses
 
 
@@ -117,17 +78,12 @@ class ConvEncoder(nn.Module):
   def __init__(self):
     super(ConvEncoder, self).__init__()
     self.net = nn.Sequential(
-      nn.Conv2d(1, 4, kernel_size=4, stride=4, bias=True),
+      nn.Conv2d(1, 4, kernel_size=3, stride=2, bias=False),
       nn.BatchNorm2d(4),
       nn.LeakyReLU(inplace=True),
-      nn.Conv2d(4, 8, kernel_size=4, stride=4, bias=True),
+      nn.Conv2d(4, 8, kernel_size=2, stride=2, bias=False),
       nn.BatchNorm2d(8),
       nn.LeakyReLU(inplace=True),
-      nn.Conv2d(8, 16, kernel_size=3, stride=2, bias=True),
-      nn.BatchNorm2d(16),
-      nn.LeakyReLU(inplace=True),
-      nn.Conv2d(16, 32, kernel_size=2, stride=1, bias=True),
-      nn.BatchNorm2d(32),
     )
 
     for l in self.net.modules():
@@ -143,19 +99,10 @@ class ConvDecoder(nn.Module):
 
     super(ConvDecoder, self).__init__()
     self.net = nn.Sequential(
-      nn.ConvTranspose2d(32, 16, kernel_size=2, stride=1, bias=True),
-      nn.BatchNorm2d(16),
-      nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(16, 8, kernel_size=3, stride=2, bias=True),
-      nn.BatchNorm2d(8),
-      nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(8, 4, kernel_size=4, stride=4, bias=True),
+      nn.ConvTranspose2d(8, 4, kernel_size=2, stride=2, bias=False),
       nn.BatchNorm2d(4),
       nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(4, 2, kernel_size=2, stride=2, bias=True),
-      nn.BatchNorm2d(2),
-      nn.ReLU(inplace=True),
-      nn.ConvTranspose2d(2, 1, kernel_size=2, stride=2, bias=True),
+      nn.ConvTranspose2d(4, 1, kernel_size=3, stride=2, bias=True),
       nn.Sigmoid(),
     )
     for l in self.net.modules():
@@ -172,14 +119,10 @@ class VanillaAutoEncoder(nn.Module):
     super(VanillaAutoEncoder, self).__init__()
     self.cv_enc = ConvEncoder()
     self.fc_enc = nn.Sequential(
-      nn.Linear(32, 8),
-      nn.ReLU(inplace=True),
       nn.Linear(8, 2),
     )
     self.fc_dec = nn.Sequential(
       nn.Linear(2, 8),
-      nn.ReLU(inplace=True),
-      nn.Linear(8, 32),
       nn.ReLU(inplace=True),
     )
     self.cv_dec = ConvDecoder()
@@ -227,11 +170,11 @@ minlr=1e-5
 maxlr=1e-4
 lbd=args.lbd
 vanilla_autoencoder = VanillaAutoEncoder().to(device)
-ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=maxlr, weight_decay=0.2)
+ae_optimizer = torch.optim.Adam(params=vanilla_autoencoder.parameters(), lr=maxlr, weight_decay=0.01)
 ae_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=ae_optimizer, gamma=args.decay)
 
 policies = [FeaturePolicy().to(device) for _ in range(2)]
-pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=maxlr, weight_decay=0.2) for policy in policies]
+pc_optimizers = [torch.optim.Adam(params=policy.parameters(), lr=maxlr, weight_decay=0.01) for policy in policies]
 pc_schedulers = [torch.optim.lr_scheduler.ExponentialLR(optimizer=pc_optimizer, gamma=args.decay) for pc_optimizer in pc_optimizers]
 
 def init_grid_world():
@@ -286,25 +229,7 @@ def train():
         next_latents = vanilla_autoencoder.encode(next_states.to(device))
         dlatents = torch.abs(next_latents - latents.detach())
         rewards  = dlatents[:, k:k+1] / torch.sum(dlatents, dim=1, keepdim=True)
-        # update_b(poses, rewards.detach(), k)
-        # mean_rewards = get_b(poses, k)
-        # sloss[k] = torch.sum(-lprob_actions * (rewards - mean_rewards)) * lbd
-        if float(rloss) > 1600:
-          sloss[k] = torch.sum(-lprob_actions * rewards )
-        elif float(rloss) > 800:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd
-        elif float(rloss) > 400:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * args.exp
-        elif float(rloss) > 200:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**2)
-        elif float(rloss) > 100:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**3)
-        elif float(rloss) > 50:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**4)
-        elif float(rloss) > 25:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**5)
-        else:
-          sloss[k] = torch.sum(-lprob_actions * rewards ) * lbd * (args.exp**6)
+        sloss[k] = torch.sum(-lprob_actions * rewards) * lbd
         sloss[k].backward()
         if i % 100 == 0:
           print(f"policy loss {k}: {sloss[k]:.3f}")
@@ -324,7 +249,7 @@ def train():
       print("---------------------------------------------------------")
 
     if i % 10000 == 0 :
-      filename = os.path.join("checkpoints", f"{'plain' if args.plain else 'simple'}-ae-{time():.0f}-{rloss}-{lbd}-{args.exp:0f}-{args.decay}.pt")
+      filename = os.path.join("checkpoints", f"{'plain' if args.plain else 'silly'}-ae-{time():.0f}-{rloss}-{lbd}-{args.exp:0f}-{args.decay}.pt")
       torch.save(vanilla_autoencoder.state_dict(), filename)
 
 
