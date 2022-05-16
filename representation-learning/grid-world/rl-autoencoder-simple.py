@@ -340,6 +340,20 @@ def visualise_latents(latents):
     axe.text(X[i], Y[i], f"({idx[0]}, {idx[1]})")
   plt.show(block=False)
 
+def visualise_latents2(latents):
+  f, axe = plt.subplots()
+  X = latents[:, 0]
+  Y = latents[:, 1]
+  Xi = np.arange(5)
+  Yi = np.arange(5)
+  axe.scatter(Xi, Yi, s=100, color="red")
+  axe.set_xlabel("X")
+  axe.set_ylabel("Y")
+  for i in range(batchsize):
+    idx = np.unravel_index(i, (n, n))
+    print(idx)
+    axe.text(Xi[idx[0]], Yi[idx[1]], f"({X[i]:.2f}, {Y[i]:.2f})")
+  plt.show(block=False)
 
 def test():
   vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + args.file))
@@ -348,7 +362,9 @@ def test():
   grid_world.visualize_frames(frames.detach().cpu(), (n, n))
   grid_world.visualize_frames(rframes.detach().cpu(), (n, n))
   print(latents)
-  visualise_latents(latents.detach().cpu().numpy())
+  np_latents = latents.detach().cpu().numpy()
+  visualise_latents(np_latents)
+  visualise_latents2(np_latents)
   input()
 
 
