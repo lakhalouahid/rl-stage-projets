@@ -249,7 +249,8 @@ def train():
       ae_optimizer.step()
       ae_optimizer.zero_grad()
     else:
-      sloss = [0, 0]
+      sloss = [0.0, 0.0]
+      mean_rewards = [0.0, 0.0]
       vanilla_autoencoder.eval()
       for k in range(2):
         policies[k].zero_grad()
@@ -262,6 +263,7 @@ def train():
         next_latents = vanilla_autoencoder.encode(next_states.to(device))
         dlatents = torch.abs(next_latents - latents.detach())
         rewards  = dlatents[:, k:k+1] / torch.sum(dlatents, dim=1, keepdim=True)
+        mean_rewards[k] = torch.mean(rewards)
         sloss[k] = torch.sum(-lprob_actions * rewards ) * args.lbd
         sloss[k].backward()
         if i % 100 == 0:
@@ -276,7 +278,7 @@ def train():
         ae_scheduler.step()
         pc_optimizers[0].step()
         pc_optimizers[1].step()
-      logging.info(f"{rloss},{sloss[0]},{sloss[0]}")
+      logging.info(f"{rloss},{sloss[0]},{sloss[1]},{mean_rewards[0]},{mean_rewards[1]}")
     if i % 100 == 0:
       print(f"r_loss: {rloss:.3f}")
       print("---------------------------------------------------------")
