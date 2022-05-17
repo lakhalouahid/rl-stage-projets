@@ -160,3 +160,4 @@ cython_debug/
 *.c
 cartpole/checkpoints
 checkpoints/
+root/

@@ -1,0 +1,3 @@
+import debugnn
+
+debugnn.train()
