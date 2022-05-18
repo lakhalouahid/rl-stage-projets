@@ -287,7 +287,7 @@ def train():
         dlatents = torch.abs(next_latents - latents.detach())
         rewards  = dlatents[:, k:k+1] / torch.sum(dlatents, dim=1, keepdim=True)
         mean_rewards[k] = torch.mean(rewards)
-        sloss[k] = torch.sum(-lprob_actions * rewards ) * args.lbd * 
+        sloss[k] = torch.sum(-lprob_actions * rewards ) * args.lbd
         sloss[k].backward()
         if i % 100 == 0:
           print(f"policy loss {k}: {sloss[k]:.3f}")
