@@ -299,7 +299,7 @@ def train():
       pc_optimizers[0].zero_grad()
       pc_optimizers[1].zero_grad()
       ae_optimizer.zero_grad()
-      if ae_scheduler.get_lr()[0] > minlr:
+      if ae_scheduler.get_lr()[0] > args.minlr:
         ae_scheduler.step()
         pc_optimizers[0].step()
         pc_optimizers[1].step()

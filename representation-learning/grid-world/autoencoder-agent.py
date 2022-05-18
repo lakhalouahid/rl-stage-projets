@@ -3,6 +3,7 @@ import argparse
 import logging
 import torch
 import pygame
+import pyfzf
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -26,9 +27,14 @@ device = torch.device("cuda:0")
 root = os.getcwd()
 logfile = os.path.join(root, "logs/train.log")
 
-os.mkdir(os.path.join(root, "logs"))
-os.mkdir(os.path.join(root, "checkpoints"))
-os.mkdir(os.path.join(root, "data"))
+if not os.path.exists(os.path.join(root, "logs")):
+  os.mkdir(os.path.join(root, "logs"))
+
+if not os.path.exists(os.path.join(root, "checkpoints")):
+  os.mkdir(os.path.join(root, "checkpoints"))
+
+if not os.path.exists(os.path.join(root, "data")):
+  os.mkdir(os.path.join(root, "data"))
 if not args.test:
   logging.basicConfig(filename=logfile, format="%(message)s", level=logging.INFO)
 
@@ -63,6 +69,23 @@ class GW():
     frame = pygame.surfarray.pixels3d(self.screen)
     return GW.to_float_tensor(frame[:, :, :1])
 
+  def visualize(self):
+    f, axes = plt.subplots(n, n)
+    for i in range(n):
+      for j in range(n):
+        axes[i][j].imshow(self.frames[i, j].moveaxis(0, 2).cpu().numpy())
+    plt.show(block=False)
+
+  @staticmethod
+  def visualize_frames(frames, size):
+    f, axes = plt.subplots(size[0], size[1])
+    k = 0
+    for i, j in zip(*[shit.flat for shit in np.mgrid[0:size[0], 0:size[1]]]):
+      axes[i][j].imshow(frames[k].moveaxis(0, 2).cpu().numpy())
+      k += 1
+      if k == len(frames):
+        break
+    plt.show(block=False)
   @staticmethod
   def to_float_tensor(frame):
     frame = torch.from_numpy(np.asarray(frame, dtype=np.float32) / 255.0)
@@ -264,7 +287,7 @@ def train():
         dlatents = torch.abs(next_latents - latents.detach())
         rewards  = dlatents[:, k:k+1] / torch.sum(dlatents, dim=1, keepdim=True)
         mean_rewards[k] = torch.mean(rewards)
-        sloss[k] = torch.sum(-lprob_actions * rewards ) * args.lbd
+        sloss[k] = torch.sum(-lprob_actions * rewards ) * args.lbd * 
         sloss[k].backward()
         if i % 100 == 0:
           print(f"policy loss {k}: {sloss[k]:.3f}")
@@ -287,6 +310,51 @@ def train():
       filename = os.path.join("checkpoints", f"{rloss}.pt")
       torch.save(vanilla_autoencoder.state_dict(), filename)
 
+def visualise_latents(latents):
+  f, axe = plt.subplots()
+  X = latents[:, 0]
+  Y = latents[:, 1]
+  axe.scatter(X, Y, s=100, color="red")
+  axe.set_xlabel("X")
+  axe.set_ylabel("Y")
+  for i in range(batchsize):
+    idx = np.unravel_index(i, (n, n))
+    axe.text(X[i], Y[i], f"({idx[0]}, {idx[1]})")
+  plt.show(block=False)
+
+def visualise_latents2(latents):
+  f, axe = plt.subplots()
+  X = latents[:, 0]
+  Y = latents[:, 1]
+  Xi = np.arange(5)
+  Yi = np.arange(5)
+  axe.scatter(Xi, Yi, s=100, color="red")
+  axe.set_xlabel("X")
+  axe.set_ylabel("Y")
+  for i in range(batchsize):
+    idx = np.unravel_index(i, (n, n))
+    print(idx)
+    axe.text(Xi[idx[0]], Yi[idx[1]], f"({X[i]:.2f}, {Y[i]:.2f})")
+  plt.show(block=False)
+
+def test():
+  fzf = pyfzf.FzfPrompt("/usr/bin/fzf")
+  while True:
+    uinput = input("Enter the commands (s/q): ")
+    if uinput == "q":
+      break
+    state_dict_file = fzf.prompt(os.listdir(os.path.join("checkpoints")))[0]
+    vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + state_dict_file))
+    frames = grid_world.frames.flatten(start_dim=0, end_dim=1)
+    rframes, latents = vanilla_autoencoder(frames)
+    grid_world.visualize_frames(frames.detach().cpu(), (n, n))
+    grid_world.visualize_frames(rframes.detach().cpu(), (n, n))
+    np_latents = latents.detach().cpu().numpy()
+    visualise_latents(np_latents)
+    visualise_latents2(np_latents)
 
 if __name__ == '__main__':
-  train()
+  if args.test:
+    test()
+  else:
+    train()
