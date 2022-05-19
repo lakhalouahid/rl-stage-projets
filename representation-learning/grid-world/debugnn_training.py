@@ -1,2 +1,4 @@
 import debugnn
-debugnn.train("root")
+
+debugnn.train_jobspoll(config_path="debugnn_config.json", executable="python")
+

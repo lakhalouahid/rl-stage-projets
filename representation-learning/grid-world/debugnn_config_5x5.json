@@ -1,9 +1,9 @@
 {
-  "filename": "autoencoder-agent.py",
+  "filename": "autoencoder-silly.py",
+  "root": "root_5x5_grid",
   "description": "80x80 grid example changing just the lambda and weightdecay",
-  "root": "data/root",
-  "num_workers": 5,
-  "default-args": "--loop 1000 --maxlr 5e-4 --minlr 1e-5 --lrdecay 0.9999",
+  "num_workers": 4,
+  "default-args": "--loop 1000000 --maxlr 5e-4 --minlr 1e-5 --lrdecay 0.9999",
   "args": [
     {
       "name": "lbd",
