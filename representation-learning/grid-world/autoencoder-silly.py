@@ -4,6 +4,7 @@ import argparse
 import logging
 import torch
 import pygame
+import debugnn
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,6 +17,7 @@ batchsize=25
 parser = argparse.ArgumentParser()
 parser.add_argument("--test", action="store_true")
 parser.add_argument("--plain", action="store_true")
+parser.add_argument("--resume", action="store_true")
 parser.add_argument("--lbd", type=float, default=1.0)
 parser.add_argument("--maxlr", type=float, default=5e-3)
 parser.add_argument("--minlr", type=float, default=5e-4)
@@ -219,6 +221,8 @@ def train():
     states, poses = grid_world.sample()
     rstates, _latents = vanilla_autoencoder.forward(states)
     rloss = torch.sum(torch.sum(0.5 * torch.square(rstates - states), dim=1))
+    if bool(torch.isnan(rloss)):
+      break
     rloss.backward()
     if args.plain:
       ae_optimizer.step()
@@ -254,6 +258,17 @@ def train():
         pc_optimizers[1].step()
       logging.info(f"{rloss},{sloss[0]},{sloss[0]}")
     if i % 100 == 0:
+      training_traceback = {
+          "loop": args.loop, 
+          "lr": {
+            "ae_optimizer": ae_optimizer.param_groups[0]['lr'],
+            "pc_optimizer": [
+                pc_optimizers[0].param_groups[0]['lr'],
+                pc_optimizers[0].param_groups[0]['lr']
+              ]
+            }
+          }
+      debugnn.json_write(training_traceback, "status.json")
       print(f"r_loss: {rloss:.3f}")
       print("---------------------------------------------------------")
 
@@ -261,6 +276,18 @@ def train():
       filename = os.path.join("checkpoints", f"{rloss}.pt")
       torch.save(vanilla_autoencoder.state_dict(), filename)
 
+def resume():
+  global vanilla_autoencoder, args
+  statedictfile = debugnn.get_latesfile("checkpoints")
+  vanilla_autoencoder.load_state_dict(torch.load(statedictfile))
+  tcb = debugnn.json_read("status.json")
+  args.loop = tcb["loop"]
+  for g in ae_optimizer.param_groups:
+    g['lr'] = tcb["lr"]["ae_optimizer"]
+  for g in pc_optimizers[0].param_groups:
+    g['lr'] = tcb["lr"]["pc_optimizer"][0]
+  for g in pc_optimizers[1].param_groups:
+    g['lr'] = tcb["lr"]["pc_optimizer"][1]
 
 def visualise_latents(latents):
   f, axe = plt.subplots()
@@ -304,5 +331,8 @@ def test():
 if __name__ == '__main__':
   if args.test:
     test()
+  if args.resume:
+    resume()
+    train()
   else:
     train()
