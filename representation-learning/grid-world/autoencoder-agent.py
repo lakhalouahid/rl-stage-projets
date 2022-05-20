@@ -306,12 +306,12 @@ def train():
       logging.info(f"{rloss},{sloss[0]},{sloss[1]},{mean_rewards[0]},{mean_rewards[1]}")
     if i % 100 == 0:
       training_traceback = {
-          "loop": args.loop, 
+          "loop": i,
           "lr": {
             "ae_optimizer": ae_optimizer.param_groups[0]['lr'],
             "pc_optimizer": [
                 pc_optimizers[0].param_groups[0]['lr'],
-                pc_optimizers[0].param_groups[0]['lr']
+                pc_optimizers[1].param_groups[0]['lr']
               ]
             }
           }

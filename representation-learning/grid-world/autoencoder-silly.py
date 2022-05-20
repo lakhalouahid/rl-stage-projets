@@ -245,6 +245,7 @@ def train():
         sloss[k] = torch.sum(-lprob_actions * rewards ) * args.lbd
         sloss[k].backward()
         if i % 100 == 0:
+          logging.info(f"{rloss},{sloss[0]},{sloss[0]}")
           print(f"policy loss {k}: {sloss[k]:.3f}")
       pc_optimizers[0].step()
       pc_optimizers[1].step()
@@ -256,15 +257,14 @@ def train():
         ae_scheduler.step()
         pc_optimizers[0].step()
         pc_optimizers[1].step()
-      logging.info(f"{rloss},{sloss[0]},{sloss[0]}")
     if i % 100 == 0:
       training_traceback = {
-          "loop": args.loop, 
+          "loop": i,
           "lr": {
             "ae_optimizer": ae_optimizer.param_groups[0]['lr'],
             "pc_optimizer": [
                 pc_optimizers[0].param_groups[0]['lr'],
-                pc_optimizers[0].param_groups[0]['lr']
+                pc_optimizers[1].param_groups[0]['lr']
               ]
             }
           }
