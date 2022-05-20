@@ -277,7 +277,7 @@ def train():
       torch.save(vanilla_autoencoder.state_dict(), filename)
 
 def resume():
-  global vanilla_autoencoder, args
+  global vanilla_autoencoder, args, ae_optimizer, pc_optimizers
   statedictfile = debugnn.get_latesfile("checkpoints")
   vanilla_autoencoder.load_state_dict(torch.load(statedictfile))
   tcb = debugnn.json_read("status.json")
@@ -314,19 +314,22 @@ def visualise_latents2(latents):
     axe.text(idx[0], idx[1], f"({X[i]:.2f}, {Y[i]:.2f})")
   plt.show(block=False)
 
+
 def test():
-  vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + args.file))
-  frames = grid_world.frames.flatten(start_dim=0, end_dim=1)
-  rframes, latents = vanilla_autoencoder(frames)
-  grid_world.visualize_frames(frames.detach().cpu(), (n, n))
-  grid_world.visualize_frames(rframes.detach().cpu(), (n, n))
-  print(latents)
-  np_latents = latents.detach().cpu().numpy()
-  visualise_latents(np_latents)
-  visualise_latents2(np_latents)
-  input()
-
-
+  fzf = pyfzf.FzfPrompt("/usr/bin/fzf")
+  while True:
+    uinput = input("Enter the commands (s/q): ")
+    if uinput == "q":
+      break
+    state_dict_file = fzf.prompt(os.listdir(os.path.join("checkpoints")))[0]
+    vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + state_dict_file))
+    frames = grid_world.frames.flatten(start_dim=0, end_dim=1)
+    rframes, latents = vanilla_autoencoder(frames)
+    grid_world.visualize_frames(frames.detach().cpu(), (n, n))
+    grid_world.visualize_frames(rframes.detach().cpu(), (n, n))
+    np_latents = latents.detach().cpu().numpy()
+    visualise_latents(np_latents)
+    visualise_latents2(np_latents)
 
 if __name__ == '__main__':
   if args.test:
