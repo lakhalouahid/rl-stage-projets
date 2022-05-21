@@ -25,7 +25,7 @@ parser.add_argument("--lrdecay", type=float, default=0.9999)
 parser.add_argument("--weightdecay", type=float, default=0.9995)
 parser.add_argument("--loop", type=int, default=250000)
 args = parser.parse_args()
-device = torch.device("cuda:0")
+device = torch.device("gpu")
 root = os.getcwd()
 logfile = os.path.join(root, "logs/train.log")
 
