@@ -293,6 +293,7 @@ def train():
         sloss[k].backward()
         if i % 100 == 0:
           print(f"policy loss {k}: {sloss[k]:.3f}")
+          logging.info(f"{rloss},{sloss[0]},{sloss[1]},{mean_rewards[0]},{mean_rewards[1]}")
       pc_optimizers[0].step()
       pc_optimizers[1].step()
       ae_optimizer.step()
@@ -303,7 +304,6 @@ def train():
         ae_scheduler.step()
         pc_optimizers[0].step()
         pc_optimizers[1].step()
-      logging.info(f"{rloss},{sloss[0]},{sloss[1]},{mean_rewards[0]},{mean_rewards[1]}")
     if i % 100 == 0:
       training_traceback = {
           "loop": i,

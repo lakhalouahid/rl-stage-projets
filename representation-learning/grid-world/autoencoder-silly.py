@@ -245,7 +245,7 @@ def train():
         sloss[k] = torch.sum(-lprob_actions * rewards ) * args.lbd
         sloss[k].backward()
         if i % 100 == 0:
-          logging.info(f"{rloss},{sloss[0]},{sloss[0]}")
+          logging.info(f"{rloss},{sloss[0]},{sloss[1]},{mean_rewards[0]},{mean_rewards[1]}")
           print(f"policy loss {k}: {sloss[k]:.3f}")
       pc_optimizers[0].step()
       pc_optimizers[1].step()
