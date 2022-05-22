@@ -22,5 +22,13 @@ def othercfgsfunc(sub_dirs):
 
 
 
+def check_checkpoints(sub_dirs):
+  sub_dirs_with_checkpoints = []
+  for i in range(sub_dirs):
+    if os.path.exists("{}/checkpoints".format(sub_dirs[i])):
+      sub_dirs_with_checkpoints.append(sub_dirs[i])
+  return sub_dirs_with_checkpoints
 
-debugnn.run_scriptover(script, root="data/root", options="--test", othercfgsfunc=othercfgsfunc)
+
+
+debugnn.run_scriptover(script, root="data/root", options="--test", othercfgsfunc=othercfgsfunc, filterfunc=check_checkpoints)
