@@ -376,6 +376,7 @@ def test():
   np_latents = latents.detach().cpu().numpy()
   visualise_latents(np_latents)
   visualise_latents2(np_latents)
+  input()
 
 if __name__ == '__main__':
   if not args.test:
