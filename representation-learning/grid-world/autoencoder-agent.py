@@ -367,7 +367,7 @@ def visualise_latents2(latents):
 def test():
   fzf = pyfzf.FzfPrompt("/usr/bin/fzf")
   while True:
-    uinput = input("Enter the commands (s/q): ")
+    uinput = input("Enter the commands (s/l/q): ")
     if uinput == "q":
       break
     elif uinput == "l":
