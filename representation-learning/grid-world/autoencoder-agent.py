@@ -365,8 +365,9 @@ def visualise_latents2(latents):
   plt.show(block=False)
 
 def test():
-  checkpoints = debugnn.get_files("checkpoints").sort(key=lambda x: float(x[:-3]))
-  state_dict_file = os.path.basename(debugnn.get_latesfile("checkpoints"))
+  chfiles = debugnn.get_files("checkpoints")
+  chfiles.sort(key=lambda x: float(x[:-3]))
+  state_dict_file = chfiles[0]
   vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + state_dict_file))
   frames = grid_world.frames.flatten(start_dim=0, end_dim=1)
   rframes, latents = vanilla_autoencoder(frames)
