@@ -371,8 +371,7 @@ def test():
     if uinput == "q":
       break
     elif uinput == "l":
-      latest_file = debugnn.get_latesfile(os.path.join("checkpoints"))
-      state_dict_file = fzf.prompt(latest_file)[0]
+      state_dict_file = debugnn.get_latesfile(os.path.join("checkpoints"))
     else:
       state_dict_file = fzf.prompt(os.listdir(os.path.join("checkpoints")))[0]
     vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + state_dict_file))
