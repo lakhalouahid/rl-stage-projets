@@ -370,7 +370,11 @@ def test():
     uinput = input("Enter the commands (s/q): ")
     if uinput == "q":
       break
-    state_dict_file = fzf.prompt(os.listdir(os.path.join("checkpoints")))[0]
+    elif uinput == "l":
+      latest_file = debugnn.get_latesfile(os.path.join("checkpoints"))
+      state_dict_file = fzf.prompt(latest_file)[0]
+    else:
+      state_dict_file = fzf.prompt(os.listdir(os.path.join("checkpoints")))[0]
     vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + state_dict_file))
     frames = grid_world.frames.flatten(start_dim=0, end_dim=1)
     rframes, latents = vanilla_autoencoder(frames)
