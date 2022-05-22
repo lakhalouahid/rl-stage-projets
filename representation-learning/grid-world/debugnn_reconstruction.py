@@ -10,10 +10,14 @@ def removesuffix(mystr: str):
 def othercfgsfunc(sub_dirs):
   othercfgs, n = [], len(sub_dirs)
   checkpoint_dirs = debugnn.append_basename(sub_dirs, "checkpoints")
+
   for i in range(n):
-    checkpoint_files = os.listdir(checkpoint_dirs[i])
-    minrloss = min(debugnn.maplist(checkpoint_files, removesuffix))
-    othercfgs[i]["rloss"] = minrloss
+    try:
+      checkpoint_files = os.listdir(checkpoint_dirs[i])
+      minrloss = min(debugnn.maplist(checkpoint_files, removesuffix))
+      othercfgs[i]["rloss"] = minrloss
+    except FileNotFoundError:
+      othercfgs[i]["rloss"] = None
   return othercfgs
 
 
