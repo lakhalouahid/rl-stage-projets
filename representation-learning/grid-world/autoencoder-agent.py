@@ -365,7 +365,7 @@ def visualise_latents2(latents):
   plt.show(block=False)
 
 def test():
-  chfiles = debugnn.get_files("checkpoints")
+  chfiles = os.listdir("checkpoints")
   chfiles.sort(key=lambda x: float(x[:-3]))
   state_dict_file = chfiles[0]
   vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + state_dict_file))
