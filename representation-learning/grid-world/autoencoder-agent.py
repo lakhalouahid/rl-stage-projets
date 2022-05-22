@@ -384,10 +384,10 @@ def test():
     visualise_latents2(np_latents)
 
 if __name__ == '__main__':
-  if args.test:
-    test()
+  if not args.test:
+    train()
   if args.resume:
     resume()
     train()
-  else:
-    train()
+  if args.test:
+    test()
