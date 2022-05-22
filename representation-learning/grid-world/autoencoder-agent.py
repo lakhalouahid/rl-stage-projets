@@ -365,23 +365,16 @@ def visualise_latents2(latents):
   plt.show(block=False)
 
 def test():
-  fzf = pyfzf.FzfPrompt("/usr/bin/fzf")
-  while True:
-    uinput = input("Enter the commands (s/l/q): ")
-    if uinput == "q":
-      break
-    elif uinput == "l":
-      state_dict_file = os.path.basename(debugnn.get_latesfile("checkpoints"))
-    else:
-      state_dict_file = fzf.prompt(os.listdir(os.path.join("checkpoints")))[0]
-    vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + state_dict_file))
-    frames = grid_world.frames.flatten(start_dim=0, end_dim=1)
-    rframes, latents = vanilla_autoencoder(frames)
-    grid_world.visualize_frames(frames.detach().cpu(), (n, n))
-    grid_world.visualize_frames(rframes.detach().cpu(), (n, n))
-    np_latents = latents.detach().cpu().numpy()
-    visualise_latents(np_latents)
-    visualise_latents2(np_latents)
+  checkpoints = debugnn.get_files("checkpoints").sort(key=lambda x: float(x[:-3]))
+  state_dict_file = os.path.basename(debugnn.get_latesfile("checkpoints"))
+  vanilla_autoencoder.load_state_dict(torch.load("checkpoints/" + state_dict_file))
+  frames = grid_world.frames.flatten(start_dim=0, end_dim=1)
+  rframes, latents = vanilla_autoencoder(frames)
+  grid_world.visualize_frames(frames.detach().cpu(), (n, n))
+  grid_world.visualize_frames(rframes.detach().cpu(), (n, n))
+  np_latents = latents.detach().cpu().numpy()
+  visualise_latents(np_latents)
+  visualise_latents2(np_latents)
 
 if __name__ == '__main__':
   if not args.test:
