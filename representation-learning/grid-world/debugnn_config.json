@@ -1,18 +1,14 @@
 {
-  "filename": "autoencoder-silly.py",
+  "filename": "autoencoder-agent.py",
   "description": "80x80 grid example changing just the lambda and weightdecay",
-  "root": "grid5x5",
+  "root": "grid80x80",
   "num_workers": 4,
-  "default-args": "--loop 1000000 --maxlr 5e-4 --minlr 1e-5 --lrdecay 0.9999",
+  "default-args": "--loop 1000000 --maxlr 5e-4 --minlr 1e-5 --lrdecay 0.9999 --weightdecay 0",
   "args": [
     {
       "name": "lbd",
       "type": "float",
-      "values": [4, 8, 16, 32]
-    },{
-      "name": "weightdecay",
-      "type": "float",
-      "values": [2.5, 0.5, 0.1, 0.02]
+      "values": [16, 20, 24, 28, 32]
     }
   ]
 }

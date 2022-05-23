@@ -1,0 +1,19 @@
+{
+  "filename": "autoencoder-agent-var.py",
+  "description": "80x80 grid example changing just the lambda and weightdecay",
+  "root": "grid80x80",
+  "num_workers": 1,
+  "default-args": "--loop 1000000 --maxlr 5e-4 --minlr 5e-5 --lrdecay 0.9999 --weightdecay 0",
+  "args": [
+    {
+      "name": "exp",
+      "type": "float",
+      "values": [1.5, 2.0, 2.5]
+    },
+    {
+      "name": "lbd",
+      "type": "float",
+      "values": [4, 8, 16]
+    }
+  ]
+}
